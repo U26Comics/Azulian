@@ -5,39 +5,62 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Azulian Simulator (embed - pinned)</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#0f1720; color:#e6eef8; margin:0; padding:18px; }
-    .container { max-width:1000px; margin:0 auto; }
-    #azulian-sim, #azulian-life-sim { background: rgba(255,255,255,0.02); padding:12px; border-radius:8px; margin-bottom:12px; }
-    #error { color:#ff8f8f; font-weight:700; margin-top:8px; }
-    a.debug { color:#9bdcff; font-size:small; display:inline-block; margin-top:8px; }
+    body {
+      font-family: system-ui,-apple-system,"Segoe UI",Roboto,Arial;
+      background:#0f1720;
+      color:#e6eef8;
+      margin:0;
+      padding:18px;
+    }
+    .container {
+      max-width:1000px;
+      margin:0 auto;
+    }
+    #azulian-sim, #azulian-life-sim {
+      background:rgba(255,255,255,0.02);
+      padding:12px;
+      border-radius:8px;
+      margin-bottom:12px;
+    }
+    #error {
+      color:#ff8f8f;
+      font-weight:700;
+      margin-top:8px;
+    }
+    a.debug {
+      color:#9bdcff;
+      font-size:small;
+      display:inline-block;
+      margin-top:8px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 style="margin-top:0">Azulian Population & Life Sim (Pinned Embed)</h1>
 
-    <!-- REQUIRED: the script expects these element IDs -->
-    <div id="azulian-sim"></div>
-    <div id="azulian-life-sim"></div>
+    <!-- Containers required by the simulator -->
+    <div id="azulian-sim">Loading population simulator…</div>
+    <div id="azulian-life-sim">Loading life-cycle simulator…</div>
 
     <div id="error" aria-live="polite"></div>
 
-    <!-- Debug links (pinned to the commit SHA used by this embed) -->
-    <a class="debug" href="https://github.com/U26Comics/Azulian/blob/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js" target="_blank" rel="noopener">View simulator source on GitHub (blob, pinned)</a>
-    <a class="debug" href="https://raw.githubusercontent.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js" target="_blank" rel="noopener">View raw simulator (raw.githubusercontent.com, pinned)</a>
+    <!-- Debug links pinned to this commit SHA -->
+    <a class="debug" href="https://github.com/U26Comics/Azulian/blob/ed854982e8879575bb1d6616c8ebf88ab6203b57/azulian_population_sim.js" target="_blank" rel="noopener">View simulator source on GitHub (blob, pinned)</a>
+    <a class="debug" href="https://raw.githubusercontent.com/U26Comics/Azulian/ed854982e8879575bb1d6616c8ebf88ab6203b57/azulian_population_sim.js" target="_blank" rel="noopener">View raw simulator (raw.githubusercontent.com, pinned)</a>
   </div>
 
-  <!-- Include the simulator script pinned to commit 6a581431... using raw.githack for correct headers -->
-  <script src="https://raw.githack.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js"></script>
+  <!-- Load the simulator script (raw.githack for correct headers) -->
+  <script src="https://raw.githack.com/U26Comics/Azulian/ed854982e8879575bb1d6616c8ebf88ab6203b57/azulian_population_sim.js"></script>
 
   <script>
-    // Basic on-page check to surface errors for embedding hosts (Carrd)
-    window.addEventListener('error', function(evt){
+    // Basic on-page error handler (Carrd-safe)
+    window.addEventListener('error', evt => {
       const err = document.getElementById('error');
-      if(err) err.textContent = 'Page error: ' + (evt && evt.message ? evt.message : 'Unknown error') + '. See console for details.';
+      if (err)
+        err.textContent = 'Page error: ' + (evt?.message || 'Unknown error') + '. See console for details.';
     });
-    // Also surface a successful load message in console
-    console.info('Pinned embed loaded. Simulator script src = https://raw.githack.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js');
+    console.info('Pinned embed loaded: Azulian simulator script = https://raw.githack.com/U26Comics/Azulian/ed854982e8879575bb1d6616c8ebf88ab6203b57/azulian_population_sim.js');
   </script>
 </body>
 </html>
