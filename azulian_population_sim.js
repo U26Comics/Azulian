@@ -1,3 +1,4 @@
+<script>
 // Azulian Life-Cycle Simulator — Persistent, Collapsible Logs (Carrd-compatible)
 // PART A/3 — core, config, DOM scaffold (paste before Parts B and C)
 
@@ -491,6 +492,7 @@
 
 })(); // end IIFE
 <script>
+<script>
 // Azulian Population Simulator — Part D/4
 // Independent module using same style conventions as Life-Cycle Sim.
 // Creates sliders + table in <div id="azulian-sim"> and runs instantly.
@@ -873,3 +875,4 @@
   else boot();
 
 })(); // end IIFE
+<script>
