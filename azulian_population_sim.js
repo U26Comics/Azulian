@@ -1,327 +1,142 @@
-// Azulian Life-Cycle & Population Simulators — Clean Final Build (Part A/4)
-// Fully Carrd/GitHub compatible | Author: U26Comics | 2025
-
-(function(){
-  const eventColors = {
-    default:"#eaeaea", cycle:"#7ee7ff",
-    success:"#8fff8f", info:"#ffec8f", danger:"#ff8f8f"
-  };
-  const eventIcons = {
-    reproduce:"🌸", wait:"🕰", deploy:"🚀",
-    husbandAdd:"💍", husbandDeath:"⚰️",
-    prestige:"🧬", jealousyKill:"🔪",
-    deathOld:"⏳", deathBattle:"☠️",
-    deathAccident:"⚙️", deathStarve:"🥀",
-    deathPoison:"💔", deathRival:"🩸"
-  };
-
-  // Utility helpers
-  function rnd(min,max){min|=0;max|=0;return Math.floor(Math.random()*(max-min+1))+min;}
-  function el(tag,attrs={},children=[]){
-    const n=document.createElement(tag);
-    for(const[k,v]of Object.entries(attrs)){
-      if(k==="style"&&typeof v==="object")Object.assign(n.style,v);
-      else if(k.startsWith("on")&&typeof v==="function")n[k]=v;
-      else if(k==="text")n.textContent=v;
-      else n.setAttribute(k,v);
-    }
-    (Array.isArray(children)?children:[children]).forEach(c=>c&&n.appendChild(c));
-    return n;
-  }
-
-  // -----------------------------------------------------
-  // Azulian Life-Cycle Simulator
-  // -----------------------------------------------------
-  window.AzulianLifeSim={
-    p:{
-      baseLifeIfProven:120, baseLifeIfNeverProven:80,
-      rookieMortality:0.8, provenMortality:0.2,
-      deployYears:4, civilianAnnualMortality:0.15,
-      senescentAnnual:0.05, gestationMonths:6,
-      litterMin:1, litterMax:6,
-      juvenileSurvival:0.7,
-      provisioningBonusPerHusband:0.05,
-      husbandsMax:6,
-      socialConflictRiskPerYearOverCap:0.15,
-      prestigeBoostBeta:0.5,
-      prestigeThreshold:4,
-      daughterProvenProb:0.2
-    },
-
-    s:{}, cycleCount:0, ui:{}, currentCycleBody:null,
-
-    // ---------- Mount & UI scaffold ----------
-    mount(containerId="azulian-life-sim"){
-      const root=document.getElementById(containerId);
-      if(!root){console.error("[AzulianLifeSim] Missing container #"+containerId);return;}
-
-      root.innerHTML="";
-      root.appendChild(el("h3",{text:"Azulian Life-Cycle Simulator"}));
-
-      const grid=el("div",{style:{
-        display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",alignItems:"start"
-      }});
-
-      const left=el("div");
-      this.ui.status={
-        status:el("p"),age:el("p"),tours:el("p"),
-        husbands:el("p"),prestige:el("p"),
-        children:el("p"),gis:el("p")
-      };
-      left.append(
-        this.ui.status.status,this.ui.status.age,this.ui.status.tours,
-        this.ui.status.husbands,this.ui.status.prestige,
-        this.ui.status.children,this.ui.status.gis
-      );
-
-      // ✅ Controls — properly placed here
-      const controls=el("div",{style:{
-        display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"6px"
-      }},[
-        el("button",{text:"Reproduce",onclick:()=>this.reproduce()}),
-        el("button",{text:"Wait 6mo",onclick:()=>this.wait()}),
-        el("button",{text:"Deploy 4y",onclick:()=>this.deploy()}),
-        el("button",{text:"Add Husband",onclick:()=>this.addHusband()}),
-        el("button",{text:"Reset (New Cycle)",onclick:()=>this.reset()})
-      ]);
-      left.appendChild(controls);
-      // ---------- Right-side log setup ----------
-      const right = el("div");
-      const logBox = el("div",{id:"life-log",style:{
-        maxHeight:"320px",overflow:"auto",border:"1px solid #444",
-        padding:"8px",borderRadius:"8px",background:"#111"
-      }});
-      right.appendChild(logBox);
-      grid.append(left,right);
-      root.appendChild(grid);
-
-      root.appendChild(el("p",{style:{fontSize:"12px",opacity:"0.8"},
-        text:"Deaths: ⏳ old age, ☠️ battle, ⚙️ accident, 🥀 starvation, 💔 poisoning, 🩸 rival House. Husbands senesce ~120 y; prestige lifts husband cap but social risk still accrues; jealousy 🔪 can kill a husband."
-      }));
-
-      this.ui.root = root;
-      this.ui.logBox = logBox;
-      this._initLife();
-      this._renderStatus();
-      this._newCycle();
-    },
-
-    // ---------- Logging (persistent, collapsible) ----------
-    _addLog(type,msg){
-      const icon = (eventIcons[type]||"");
-      const color =
-        type.startsWith("death") ? eventColors.danger :
-        (type==="prestige" ? eventColors.success :
-        (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)
-          ? eventColors.info : eventColors.default));
-
-      const entry = el("div");
-      entry.innerHTML = `${icon} <span style="color:${color}">${msg}</span>`;
-      entry.style.opacity = "0.3";
-      if (this.currentCycleBody) {
-        this.currentCycleBody.appendChild(entry);
-        let o = 0.3;
-        const fade = setInterval(()=>{
-          o += 0.05; entry.style.opacity = String(o);
-          if (o >= 1) clearInterval(fade);
-        },30);
-      }
-      if (this.ui.logBox) this.ui.logBox.scrollTop = this.ui.logBox.scrollHeight;
-    },
-
-    _newCycle(){
-      this.cycleCount += 1;
-      const wrap = el("details",{open:true});
-      const sum  = el("summary");
-      sum.innerHTML =
-        `<span style="color:${eventColors.cycle};font-weight:600;">
-         🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.
-         </span>`;
-      const body = el("div",{class:"cycle-body",style:{marginLeft:"1em"}});
-      wrap.append(sum,body);
-      this.ui.logBox.appendChild(wrap);
-      this.currentCycleBody = body;
-      this.ui.logBox.scrollTop = this.ui.logBox.scrollHeight;
-    },
-
-    // ---------- Life initialization ----------
-    _initLife(){
-      this.s = {
-        age:16,senescedYears:0,alive:true,proven:false,deployments:0,
-        husbands:0,husbandAges:[],
-        children:[],daughtersProven:0,daughtersTotal:0,
-        prestige:0,highPrestige:false
-      };
-    },
-
-    // ---------- Core helpers ----------
-    _lifeCap(){
-      const base = this.s.proven ? this.p.baseLifeIfProven : this.p.baseLifeIfNeverProven;
-      return base + (this.s.deployments|0)*(this.p.deployYears??4);
-    },
-
-    _updatePrestige(){
-      const d=this.s.daughtersTotal|0, dp=this.s.daughtersProven|0;
-      const prev=+this.s.prestige||0;
-      const frac=d>0?(dp/d):0;
-      this.s.prestige=Math.min(1,Math.max(0,frac));
-      this.s.highPrestige=dp>=(this.p.prestigeThreshold??4);
-      if((prev<0.5&&this.s.prestige>=0.5)||(prev<1&&this.s.prestige===1))
-        this._addLog("prestige","Prestige increased!");
-    },
-
-    _roll(p){return Math.random()<(Number.isFinite(p)?p:0);},
-
-    _checkHusbands(){
-      const surv=[];
-      for(const hAge of (this.s.husbandAges||[])){
-        if((this.s.age-hAge)>104)
-          this._addLog("husbandDeath","Husband died of old age.");
-        else surv.push(hAge);
-      }
-      this.s.husbandAges=surv;
-      this.s.husbands=surv.length;
-
-      if(this.s.husbands>=2){
-        const jealousP=0.005*(this.s.husbands-1);
-        if(Math.random()<jealousP){
-          this.s.husbands-=1; this.s.husbandAges.pop();
-          this._addLog("jealousyKill","One husband killed another out of jealousy.");
-        }
-      }
-    },
-
-    _applyCivilianMortality(){
+    // ---------- Mortality & Death Handling ----------
+    _applyCivilianMortality(lastAction = null){
       if(!this.s.alive) return;
       this._checkHusbands();
-      let p=(this.p.civilianAnnualMortality??0.15)*0.5;
-      const cap=this._lifeCap();
-      if(this.s.age>cap){
-        const yrs=this.s.age-cap;
-        p=Math.min(0.99,p+yrs*(this.p.senescentAnnual??0.05)*0.5);
+
+      // Base half-year civilian risk
+      let p = (this.p.civilianAnnualMortality ?? 0.15) * 0.5;
+      const cap = this._lifeCap();
+      if(this.s.age > cap){
+        const yrs = this.s.age - cap;
+        p = Math.min(0.99, p + yrs * (this.p.senescentAnnual ?? 0.05) * 0.5);
       }
-      if(this._roll(p)){
-        const r=Math.random();
-        if(r<0.30)this._die("deathOld","Died of old age");
-        else if(r<0.45)this._die("deathAccident","Died in workplace accident");
-        else if(r<0.60)this._die("deathStarve","Starved to death");
-        else if(r<0.75)this._die("deathPoison","Poisoned by jealous husband");
-        else this._die("deathRival","Killed by rival House");
+
+      if(!this._roll(p)) return;  // survived this period
+
+      // --- Determine which pool of deaths to draw from ---
+      const civilianCauses = [
+        ["deathRival","Killed by rival wicker gang",0.15],
+        ["deathRival","Killed by rat hunters",0.1],
+        ["deathRival","Killed in worker uprising",0.1],
+        ["deathAccident","Died of infection",0.1],
+        ["deathPoison","Executed by Yebra for illegal farming",0.1],
+        ["deathPoison","Executed by Yebra for sabotage",0.1],
+        ["deathPoison","Executed by Yebra for terroristic activity",0.1],
+        ["deathPoison","Executed by Yebra for involvement in organized crime",0.1],
+      ];
+
+      const veteranCauses = [
+        ["deathRival","Killed in a duel",0.15],
+        ["deathRival","Killed by outlanders while rat hunting",0.1],
+        ["deathPoison","Killed by angry prostitute while slumming",0.1],
+        ["deathAccident","Overdosed",0.1],
+        ["deathPoison","Executed for Posadist-terror cell activities",0.1],
+        ["deathPoison","Executed for space piracy",0.1],
+        ["deathPoison","Executed for violating Yebra patent law",0.1],
+        ["deathRival","Killed in a drunken brawl",0.1],
+      ];
+
+      const baseCauses = [
+        ["deathAccident","Died in workplace accident",0.15],
+        ["deathStarve","Starved to death",0.15],
+        ["deathPoison","Poisoned by jealous husband",0.1],
+        ["deathRival","Killed by rival House",0.1]
+      ];
+
+      let pool = baseCauses;
+      if(!this.s.proven && this.s.deployments === 0) pool = pool.concat(civilianCauses);
+      else if(this.s.proven || this.s.deployments > 0) pool = pool.concat(veteranCauses);
+
+      // --- Old age check (only if 80+) ---
+      if(this.s.age >= 80) pool.push(["deathOld","Died of old age",0.25]);
+
+      // Normalize weights and choose cause
+      const totalW = pool.reduce((a,[, ,w])=>a+w,0);
+      let roll = Math.random()*totalW;
+      for(const [type,msg,w] of pool){
+        roll -= w;
+        if(roll<=0){ this._die(type,msg); return; }
       }
+      // fallback
+      this._die("deathAccident","Died in unexplained circumstances");
     },
 
-    // ---------- Actions ----------
+    // ---------- Husband Interaction Overrides ----------
     addHusband(){
       if(!this.s.alive) return;
-      // 95 % rejection chance if not proven (not deployed)
+      // 95 % rejection if not proven
       if(!this.s.proven){
-        const rejected=Math.random()<0.95;
-        this.s.age+=0.5; // same cooldown as reproduction
+        const rejected = Math.random() < 0.95;
+        this.s.age += 0.5; // 6-month cooldown
         if(rejected){
+          // 10 % chance violent retaliation
+          if(Math.random() < 0.10){
+            this._die("deathRival","Killed by prospective husband's House");
+            return;
+          }
           this._addLog("info","💔 Rejected by prospective husband for being poor.");
-          this._applyCivilianMortality();
+          this._applyCivilianMortality("husbandAttempt");
           this._renderStatus();
           return;
         }
       }
-      this.s.husbands+=1;
+      this.s.husbands += 1;
       this.s.husbandAges.push(this.s.age);
       this._addLog("husbandAdd",`Took another husband. Total=${this.s.husbands}.`);
       this._renderStatus();
     },
 
-    reproduce(){
-      if(!this.s.alive) return;
-      if((this.s.husbands||0)<1){
-        this._addLog("info","You cannot reproduce without a husband.");
-        return;
-      }
-
-      const litter=rnd((this.p.litterMin??1),(this.p.litterMax??6));
-      const jBase=this.p.juvenileSurvival??0.7;
-      const bonus=(this.p.provisioningBonusPerHusband??0.05)
-                  *Math.max(0,(this.s.husbands|0)-1);
-      const j=Math.min(0.95,Math.max(0,jBase*(1+bonus)));
-
-      let survive=0,daughters=0,proved=0;
-      for(let i=0;i<litter;i++){
-        const sex=Math.random()<0.5?"F":"M";
-        const adult=this._roll(j);
-        let proven=false;
-        if(sex==="F"&&adult) proven=this._roll(this.p.daughterProvenProb??0.2);
-        this.s.children.push({sex,adult,proven});
-        if(adult)survive++;
-        if(sex==="F"){daughters++;if(proven)proved++;}
-      }
-      this.s.daughtersTotal+=daughters;
-      this.s.daughtersProven+=proved;
-      this._updatePrestige();
-      this.s.age+=0.5;
-
-      this._addLog("reproduce",
-        `Reproduced: litter=${litter}, adults=${survive}, F=${daughters}, ProvenF+${proved}. Age→${this.s.age.toFixed(1)}`);
-      this._applyCivilianMortality();
-      this._renderStatus();
-    },
-    // ---------- Waiting & Deployment ----------
-    wait(){
-      if(!this.s.alive) return;
-      this.s.age += 0.5;
-      this._addLog("wait",`Waited 6 months. Age→${this.s.age.toFixed(1)}`);
-      this._applyCivilianMortality();
-      this._renderStatus();
-    },
-
+    // ---------- Deployment Mortality ----------
     deploy(){
       if(!this.s.alive) return;
       const first = !this.s.proven;
       let m = first ? (this.p.rookieMortality ?? 0.8)
                     : (this.p.provenMortality ?? 0.2);
-      // Prestige lowers mortality
       m = Math.max(0, m * (1 - (this.p.prestigeBoostBeta ?? 0.5) * (+this.s.prestige || 0)));
 
       const survived = !this._roll(m);
       this.s.age += (this.p.deployYears ?? 4);
       this.s.deployments += 1;
 
-      if (survived) {
-        if (first) this.s.proven = true;
-        this._addLog("deploy",
-          `Deployment ${this.s.deployments} survived. Mortality ${(m*100).toFixed(1)}%. Age→${this.s.age}`);
+      if(survived){
+        if(first) this.s.proven = true;
+        this._addLog("deploy",`Deployment ${this.s.deployments} survived. Mortality ${(m*100).toFixed(1)}%. Age→${this.s.age}`);
       } else {
-        this._die("deathBattle","Died in battle");
+        if(Math.random()<0.33)
+          this._die("deathBattle","Thrown from airlock after failed QC");
+        else
+          this._die("deathBattle","Died in battle");
         return;
       }
       this._renderStatus();
     },
 
-    // ---------- Death ----------
+    // ---------- Death Finalizer ----------
     _die(type,msg){
       this.s.alive = false;
       this._addLog(type,`${msg}. Final age ${this.s.age.toFixed(1)}.`);
       this._renderStatus();
     },
-
     // ---------- Status rendering ----------
     _computeGIS(){
-      let score=0,max=0;
-      for(const ch of (this.s.children || [])){
+      let score = 0, max = 0;
+      for (const ch of (this.s.children || [])) {
         max += 3;
-        if(ch.adult) score += 1;
-        if(ch.proven) score += 2;
+        if (ch.adult)  score += 1;
+        if (ch.proven) score += 2;
       }
-      const norm = max>0 ? Math.round(100*score/max) : 0;
-      return {score,max,norm};
+      const norm = max > 0 ? Math.round(100 * score / max) : 0;
+      return { score, max, norm };
     },
 
     _renderStatus(){
       if(!this.ui.status) return;
       const cap = this._lifeCap();
       const gis = this._computeGIS();
-      const total = (this.s.children?.length)||0;
-      const adults = (this.s.children?.filter(c=>c.adult).length)||0;
-      const df = (this.s.children?.filter(c=>c.sex==='F').length)||0;
-      const dp = this.s.daughtersProven||0;
+      const total  = (this.s.children?.length) || 0;
+      const adults = (this.s.children?.filter(c=>c.adult).length) || 0;
+      const df     = (this.s.children?.filter(c=>c.sex==='F').length) || 0;
+      const dp     = this.s.daughtersProven || 0;
 
       this.ui.status.status.innerHTML =
         `<b>Status:</b> ${this.s.alive ? 'Alive' : 'Dead'}`;
@@ -343,7 +158,7 @@
     reset(){
       this._initLife();
       this._renderStatus();
-      this._newCycle(); // new collapsible section (preserve history)
+      this._newCycle(); // new collapsible section, preserves history
     }
   }; // end AzulianLifeSim object
 
