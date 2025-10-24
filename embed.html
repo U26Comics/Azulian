@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Azulian Simulator (embed test)</title>
+  <title>Azulian Simulator (embed - pinned)</title>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#0f1720; color:#e6eef8; margin:0; padding:18px; }
     .container { max-width:1000px; margin:0 auto; }
@@ -14,7 +14,7 @@
 </head>
 <body>
   <div class="container">
-    <h1 style="margin-top:0">Azulian Population & Life Sim</h1>
+    <h1 style="margin-top:0">Azulian Population & Life Sim (Pinned Embed)</h1>
 
     <!-- REQUIRED: the script expects these element IDs -->
     <div id="azulian-sim"></div>
@@ -22,36 +22,22 @@
 
     <div id="error" aria-live="polite"></div>
 
-    <a class="debug" href="https://github.com/U26Comics/Azulian/blob/main/azulian_population_sim.js" target="_blank" rel="noopener">View simulator source on GitHub (blob)</a>
-    <a class="debug" href="https://raw.githubusercontent.com/U26Comics/Azulian/main/azulian_population_sim.js" target="_blank" rel="noopener">View raw simulator (raw.githubusercontent.com)</a>
+    <!-- Debug links (pinned to the commit SHA used by this embed) -->
+    <a class="debug" href="https://github.com/U26Comics/Azulian/blob/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js" target="_blank" rel="noopener">View simulator source on GitHub (blob, pinned)</a>
+    <a class="debug" href="https://raw.githubusercontent.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js" target="_blank" rel="noopener">View raw simulator (raw.githubusercontent.com, pinned)</a>
   </div>
 
+  <!-- Include the simulator script pinned to commit 6a581431... using raw.githack for correct headers -->
+  <script src="https://raw.githack.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js"></script>
+
   <script>
-    // Use raw.githack for correct MIME/headers; replace "main" with a commit SHA if you want pinned version
-    const jsUrl = 'https://raw.githack.com/U26Comics/Azulian/main/azulian_population_sim.js';
-
-    function loadSimulator(url) {
-      const s = document.createElement('script');
-      s.src = url;
-      s.async = false; // keep insertion order predictable
-      s.onload = function() {
-        console.log('Azulian simulator script loaded from', url);
-        // If the script ran and populated elements, hide any error text:
-        const err = document.getElementById('error'); if (err) err.textContent = '';
-      };
-      s.onerror = function(e) {
-        const err = document.getElementById('error');
-        if (err) err.textContent = 'Failed to load simulator script. Check the Network panel and open the raw/githack URLs above. (See console for details.)';
-        console.error('Failed to load script', url, e);
-      };
-      document.body.appendChild(s);
-    }
-
-    // Try to load the simulator
-    loadSimulator(jsUrl);
-
-    // Helpful dev tip shown in console to guide debugging
-    console.info('If the page shows only the header, open DevTools → Console and Network. Look for 404, MIME, or script errors. Paste any error text to share with me and I will diagnose further.');
+    // Basic on-page check to surface errors for embedding hosts (Carrd)
+    window.addEventListener('error', function(evt){
+      const err = document.getElementById('error');
+      if(err) err.textContent = 'Page error: ' + (evt && evt.message ? evt.message : 'Unknown error') + '. See console for details.';
+    });
+    // Also surface a successful load message in console
+    console.info('Pinned embed loaded. Simulator script src = https://raw.githack.com/U26Comics/Azulian/6a581431142a2ac7ab110945ee4f965b6e2226a7/azulian_population_sim.js');
   </script>
 </body>
 </html>
