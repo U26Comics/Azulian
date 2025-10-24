@@ -85,8 +85,9 @@
         el("button",{text:"Reset (New Cycle)",onclick:()=>this.reset()})
       ]);
       left.appendChild(controls);
-      const right=el("div");
-      const logBox=el("div",{id:"life-log",style:{
+      // ---------- Right-side log setup ----------
+      const right = el("div");
+      const logBox = el("div",{id:"life-log",style:{
         maxHeight:"320px",overflow:"auto",border:"1px solid #444",
         padding:"8px",borderRadius:"8px",background:"#111"
       }});
@@ -95,53 +96,57 @@
       root.appendChild(grid);
 
       root.appendChild(el("p",{style:{fontSize:"12px",opacity:"0.8"},
-        text:"Deaths: ⏳ old age, ☠️ battle, ⚙️ accident, 🥀 starvation, 💔 poisoning, 🩸 rival House. Husbands senesce ~120y; prestige lifts husband cap but social risk still accrues; jealousy 🔪 can kill a husband."
+        text:"Deaths: ⏳ old age, ☠️ battle, ⚙️ accident, 🥀 starvation, 💔 poisoning, 🩸 rival House. Husbands senesce ~120 y; prestige lifts husband cap but social risk still accrues; jealousy 🔪 can kill a husband."
       }));
 
-      this.ui.root=root; this.ui.logBox=logBox;
-      this._initLife(); this._renderStatus(); this._newCycle();
+      this.ui.root = root;
+      this.ui.logBox = logBox;
+      this._initLife();
+      this._renderStatus();
+      this._newCycle();
     },
 
     // ---------- Logging (persistent, collapsible) ----------
     _addLog(type,msg){
-      const icon=(eventIcons[type]||"");
-      const color=
-        type.startsWith("death")?eventColors.danger:
-        (type==="prestige"?eventColors.success:
+      const icon = (eventIcons[type]||"");
+      const color =
+        type.startsWith("death") ? eventColors.danger :
+        (type==="prestige" ? eventColors.success :
         (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)
-          ?eventColors.info:eventColors.default));
+          ? eventColors.info : eventColors.default));
 
-      const entry=el("div");
-      entry.innerHTML=`${icon} <span style="color:${color}">${msg}</span>`;
-      entry.style.opacity="0.3";
-      if(this.currentCycleBody){
+      const entry = el("div");
+      entry.innerHTML = `${icon} <span style="color:${color}">${msg}</span>`;
+      entry.style.opacity = "0.3";
+      if (this.currentCycleBody) {
         this.currentCycleBody.appendChild(entry);
-        let o=0.3;
-        const fade=setInterval(()=>{
-          o+=0.05; entry.style.opacity=String(o);
-          if(o>=1) clearInterval(fade);
+        let o = 0.3;
+        const fade = setInterval(()=>{
+          o += 0.05; entry.style.opacity = String(o);
+          if (o >= 1) clearInterval(fade);
         },30);
       }
-      if(this.ui.logBox) this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
+      if (this.ui.logBox) this.ui.logBox.scrollTop = this.ui.logBox.scrollHeight;
     },
 
     _newCycle(){
-      this.cycleCount+=1;
-      const wrap=el("details",{open:true});
-      const sum=el("summary");
-      sum.innerHTML=
+      this.cycleCount += 1;
+      const wrap = el("details",{open:true});
+      const sum  = el("summary");
+      sum.innerHTML =
         `<span style="color:${eventColors.cycle};font-weight:600;">
          🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.
          </span>`;
-      const body=el("div",{class:"cycle-body",style:{marginLeft:"1em"}});
+      const body = el("div",{class:"cycle-body",style:{marginLeft:"1em"}});
       wrap.append(sum,body);
       this.ui.logBox.appendChild(wrap);
-      this.currentCycleBody=body;
-      this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
+      this.currentCycleBody = body;
+      this.ui.logBox.scrollTop = this.ui.logBox.scrollHeight;
     },
 
+    // ---------- Life initialization ----------
     _initLife(){
-      this.s={
+      this.s = {
         age:16,senescedYears:0,alive:true,proven:false,deployments:0,
         husbands:0,husbandAges:[],
         children:[],daughtersProven:0,daughtersTotal:0,
@@ -151,12 +156,12 @@
 
     // ---------- Core helpers ----------
     _lifeCap(){
-      const base=this.s.proven?this.p.baseLifeIfProven:this.p.baseLifeIfNeverProven;
-      return base+(this.s.deployments|0)*(this.p.deployYears??4);
+      const base = this.s.proven ? this.p.baseLifeIfProven : this.p.baseLifeIfNeverProven;
+      return base + (this.s.deployments|0)*(this.p.deployYears??4);
     },
 
     _updatePrestige(){
-      const d=this.s.daughtersTotal|0,dp=this.s.daughtersProven|0;
+      const d=this.s.daughtersTotal|0, dp=this.s.daughtersProven|0;
       const prev=+this.s.prestige||0;
       const frac=d>0?(dp/d):0;
       this.s.prestige=Math.min(1,Math.max(0,frac));
@@ -180,8 +185,7 @@
       if(this.s.husbands>=2){
         const jealousP=0.005*(this.s.husbands-1);
         if(Math.random()<jealousP){
-          this.s.husbands-=1;
-          this.s.husbandAges.pop();
+          this.s.husbands-=1; this.s.husbandAges.pop();
           this._addLog("jealousyKill","One husband killed another out of jealousy.");
         }
       }
@@ -214,8 +218,7 @@
         const rejected=Math.random()<0.95;
         this.s.age+=0.5; // same cooldown as reproduction
         if(rejected){
-          this._addLog("info",
-            "💔 Rejected by prospective husband for being poor.");
+          this._addLog("info","💔 Rejected by prospective husband for being poor.");
           this._applyCivilianMortality();
           this._renderStatus();
           return;
@@ -230,7 +233,7 @@
     reproduce(){
       if(!this.s.alive) return;
       if((this.s.husbands||0)<1){
-        this._addLog("info","You are a homonid, not a plant or a lizard. You cannot reproduce asexually.");
+        this._addLog("info","You cannot reproduce without a husband.");
         return;
       }
 
@@ -260,10 +263,11 @@
       this._applyCivilianMortality();
       this._renderStatus();
     },
+    // ---------- Waiting & Deployment ----------
     wait(){
       if(!this.s.alive) return;
       this.s.age += 0.5;
-      this._addLog("wait", `Waited 6 months. Age→${this.s.age.toFixed(1)}`);
+      this._addLog("wait",`Waited 6 months. Age→${this.s.age.toFixed(1)}`);
       this._applyCivilianMortality();
       this._renderStatus();
     },
@@ -273,7 +277,7 @@
       const first = !this.s.proven;
       let m = first ? (this.p.rookieMortality ?? 0.8)
                     : (this.p.provenMortality ?? 0.2);
-      // Prestige reduces battlefield mortality
+      // Prestige lowers mortality
       m = Math.max(0, m * (1 - (this.p.prestigeBoostBeta ?? 0.5) * (+this.s.prestige || 0)));
 
       const survived = !this._roll(m);
@@ -288,36 +292,36 @@
         this._die("deathBattle","Died in battle");
         return;
       }
-
       this._renderStatus();
     },
 
+    // ---------- Death ----------
     _die(type,msg){
       this.s.alive = false;
-      this._addLog(type, `${msg}. Final age ${this.s.age.toFixed(1)}.`);
+      this._addLog(type,`${msg}. Final age ${this.s.age.toFixed(1)}.`);
       this._renderStatus();
     },
 
     // ---------- Status rendering ----------
     _computeGIS(){
-      let score = 0, max = 0;
-      for (const ch of (this.s.children || [])) {
+      let score=0,max=0;
+      for(const ch of (this.s.children || [])){
         max += 3;
-        if (ch.adult)  score += 1;
-        if (ch.proven) score += 2;
+        if(ch.adult) score += 1;
+        if(ch.proven) score += 2;
       }
-      const norm = max > 0 ? Math.round(100 * score / max) : 0;
-      return { score, max, norm };
+      const norm = max>0 ? Math.round(100*score/max) : 0;
+      return {score,max,norm};
     },
 
     _renderStatus(){
       if(!this.ui.status) return;
       const cap = this._lifeCap();
       const gis = this._computeGIS();
-      const total  = (this.s.children?.length) || 0;
-      const adults = (this.s.children?.filter(c=>c.adult).length) || 0;
-      const df     = (this.s.children?.filter(c=>c.sex==='F').length) || 0;
-      const dp     = this.s.daughtersProven || 0;
+      const total = (this.s.children?.length)||0;
+      const adults = (this.s.children?.filter(c=>c.adult).length)||0;
+      const df = (this.s.children?.filter(c=>c.sex==='F').length)||0;
+      const dp = this.s.daughtersProven||0;
 
       this.ui.status.status.innerHTML =
         `<b>Status:</b> ${this.s.alive ? 'Alive' : 'Dead'}`;
@@ -339,22 +343,22 @@
     reset(){
       this._initLife();
       this._renderStatus();
-      this._newCycle(); // new collapsible section, history preserved
+      this._newCycle(); // new collapsible section (preserve history)
     }
   }; // end AzulianLifeSim object
 
   // ---------- Bootstrap ----------
   function boot(){
     const id = "azulian-life-sim";
-    if (document.getElementById(id)) window.AzulianLifeSim.mount(id);
+    if(document.getElementById(id)) window.AzulianLifeSim.mount(id);
   }
-  if (document.readyState === "loading")
+  if(document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
 })(); // end AzulianLifeSim IIFE
 // ---------------------------------------------------------
-// Azulian Population Simulator — independent module
+// Azulian Population Simulator — Independent module
 // ---------------------------------------------------------
 (function(){
   const AzulianSim = {
