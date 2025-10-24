@@ -119,10 +119,11 @@
       this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
     },
 
-    _initLife(){
+     _initLife(){
       this.s={
         age:16,senescedYears:0,alive:true,proven:false,deployments:0,
-        husbands:1,husbandAges:[16],
+        // 🧩 start with no husband
+        husbands:0,husbandAges:[],
         children:[],daughtersProven:0,daughtersTotal:0,
         prestige:0,highPrestige:false
       };
@@ -187,8 +188,16 @@
     },
 
 // ---------- Actions ----------
-    reproduce(){
+   reproduce(){
       if(!this.s.alive) return;
+
+      // 🧩 must have at least one husband
+      if((this.s.husbands||0) < 1){
+        this._addLog("info",
+          "Cannot reproduce without at least one husband.");
+        return;
+      }
+
       const litter=rnd((this.p.litterMin??1),(this.p.litterMax??6));
       const jBase=this.p.juvenileSurvival??0.7;
       const bonus=(this.p.provisioningBonusPerHusband??0.05)
@@ -208,11 +217,35 @@
       this.s.daughtersTotal+=daughters;
       this.s.daughtersProven+=proved;
       this._updatePrestige();
-      this.s.age+=0.5;
+      this.s.age+=0.5; // 6-month cooldown
 
       this._addLog("reproduce",
         `Reproduced: litter=${litter}, adults=${survive}, F=${daughters}, ProvenF+${proved}. Age→${this.s.age.toFixed(1)}`);
       this._applyCivilianMortality();
+      this._renderStatus();
+    },
+
+    addHusband(){
+      if(!this.s.alive) return;
+
+      // 🧩 if not deployed (no proven status), 95% rejection chance
+      if(!this.s.proven){
+        const rejected = Math.random() < 0.95;
+        this.s.age += 0.5; // same cooldown as reproduction
+        if(rejected){
+          this._addLog("deathPoison",
+            "💔 Rejected by prospective husband. Must wait 6 months before trying again.");
+          this._applyCivilianMortality();
+          this._renderStatus();
+          return;
+        }
+      }
+
+      // success
+      this.s.husbands += 1;
+      (this.s.husbandAges||[]).push(this.s.age);
+      this._addLog("husbandAdd",
+        `Took another husband. Total=${this.s.husbands}.`);
       this._renderStatus();
     },
 
