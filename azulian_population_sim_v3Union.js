@@ -1,5 +1,5 @@
-/* Azulian Life-Cycle & Population Simulators — Bundled Build (Outlanders + Union)
-   Carrd / GitHub compatible, self-contained, UTF-8.
+/* Azulian Life-Cycle & Population Simulators — Bundled Build (Outlanders + Union, auto-recruit + time-skip)
+   Carrd / GitHub Pages compatible, self-contained, UTF-8.
    Exposes: window.AzulianLifeSim, window.AzulianSim
    Version: 2025-10-24
 */
@@ -55,13 +55,18 @@ const Life = {
     husbandsMax:6, socialConflictRiskPerYearOverCap:0.15,
     prestigeBoostBeta:0.50, prestigeThreshold:4,
     daughterProvenProb:0.20,
+
     // Outlanders / Union
     outlanderAdvantage:0.50,
-    unionConvertPass:0.90, unionConvertDeath:0.10,
-    unionExpandDeath:0.10, unionCacheDeath:0.10,
-    unionStealthFail:0.10, unionCacheSave:10,
-    unionHideYears:4,
-    revoltUnlockAt:1000, revoltBaseSuccess:0.10,
+    unionConvertPass:0.90,   // per-member auto-recruit success each 6mo
+    unionConvertDeath:0.10,  // per-member death chance each 6mo
+    unionExpandDeath:0.10,   // manual recruit (leader) death chance
+    unionCacheDeath:0.10,    // drone executes cache builders
+    unionStealthFail:0.10,   // 6mo stealth fail chance (collective)
+    unionCacheSave:10,       // members saved per cache in a purge
+    unionHideYears:4,        // years in hiding on purge (instant skip)
+    revoltUnlockAt:1000,
+    revoltBaseSuccess:0.10,
     revoltStackBonus:0.10
   },
 
@@ -226,8 +231,12 @@ const Life = {
       p=this._advantage(p);
     }
 
-    // survive this half-year? (if yes, still do stealth tick)
-    if(!this._roll(p)){ this._unionStealthTick(); return; }
+    // survive this half-year? (if yes, still do stealth + auto-recruit ticks)
+    if(!this._roll(p)){
+      this._unionRecruitTick();   // 6mo pass → recruiters act
+      this._unionStealthTick();   // collective stealth save
+      return;
+    }
 
     // retaliation if attempting husband while unproven
     if(lastAction==="husbandAttempt" && !this.s.proven && Math.random()<0.10){
@@ -258,7 +267,6 @@ const Life = {
     const base = [
       ["deathAccident","Died in workplace accident",0.15],
       ["deathStarve","Starved to death",0.15],
-      // ✅ fixed stray parenthesis here:
       ...(this.s.husbands>0 ? [["deathPoison","Poisoned by jealous husband",0.10]] : []),
       ["deathRival","Killed by rival House",0.10]
     ];
@@ -284,18 +292,46 @@ const Life = {
     if(this.s.age - (this.s.lastStealthTickAge||0) < 0.5) return;
     this.s.lastStealthTickAge=this.s.age;
 
-    // stealth fail triggers purge & hiding
+    // stealth fail triggers purge & hiding (instant 4y skip + 20% player death risk)
     if(Math.random() < (this.p.unionStealthFail||0.10)){
       const caches=this.s.unionCaches|0;
-      const survivors=caches*(this.p.unionCacheSave||10);
       const before=this.s.unionMembers;
+      const survivors=caches*(this.p.unionCacheSave||10);
       const after=Math.min(before,survivors);
       this.s.unionMembers=after;
       this._addLog("union",`Union purge by Yebra. Members ${before} → ${after}.`);
+      this._addLog("union",`Union forced into hiding for ${(this.p.unionHideYears||4)} years.`);
 
-      // go to ground
-      this.s.unionHiddenUntil=(this.s.unionHiddenUntil||this.s.age)+(this.p.unionHideYears||4);
-      this._addLog("union",`Union in hiding for ${(this.p.unionHideYears||4)} years.`);
+      // automatic 4-year time skip, like deployment
+      this.s.age += (this.p.unionHideYears||4);
+
+      // 20% civilian death risk during hiding
+      if(Math.random()<0.20){
+        this._applyCivilianMortality();
+        if(!this.s.alive) return;
+      }
+
+      // emerge immediately after skip
+      this.s.unionHiddenUntil = this.s.age;
+      this._addLog("union","Union resurfaced from hiding.");
+    }
+  },
+
+  // Union auto-recruit tick — each member may recruit or die every 6 months
+  _unionRecruitTick(){
+    if(!this.s.outlander || this.s.unionMembers<=0) return;
+    if(this.s.unionHiddenUntil && this.s.age < this.s.unionHiddenUntil) return;
+
+    let gained = 0, deaths = 0;
+    const members = this.s.unionMembers;
+    for(let i=0;i<members;i++){
+      const r = Math.random();
+      if(r < (this.p.unionConvertDeath||0.10)) deaths++;
+      else if(r < (this.p.unionConvertDeath||0.10)+(this.p.unionConvertPass||0.90)) gained++;
+    }
+    this.s.unionMembers = Math.max(0, this.s.unionMembers - deaths + gained);
+    if(deaths>0 || gained>0){
+      this._addLog("union",`Auto-recruit: ${deaths>0?deaths+' executed, ':''}+${gained} recruited. Total ${this.s.unionMembers}.`);
     }
   },
 
@@ -349,6 +385,10 @@ const Life = {
     this._updatePrestige();
 
     this.s.age+=0.5;
+    // 6 months passed → auto-recruit + stealth
+    this._unionRecruitTick();
+    this._unionStealthTick();
+
     this._addLog("reproduce",`Reproduced: litter=${litter}, adults=${survive}, F=${daughters}, ProvenF+${proved}. Age→${this.s.age.toFixed(1)}`);
     this._applyCivilianMortality();
     this._renderStatus();
@@ -358,9 +398,14 @@ const Life = {
     if(!this.s.alive) return;
     this.s.age+=0.5;
 
+    // 6 months passed → auto-recruit + stealth
+    this._unionRecruitTick();
+    this._unionStealthTick();
+
     if(this.s.unionHiddenUntil && this.s.age>=this.s.unionHiddenUntil){
       this.s.unionHiddenUntil=null;
       this._addLog("union","Union resurfaced from hiding.");
+      if(Math.random()<0.20) this._applyCivilianMortality(); // resurfacing risk
     }
 
     this._addLog("wait",`Waited 6 months. Age→${this.s.age.toFixed(1)}`);
@@ -424,33 +469,18 @@ const Life = {
       this._addLog("union","Union is in hiding; cannot expand."); return;
     }
 
-    // risk to leader
+    // Outlander action = 6 months
+    this.s.age += 0.5;
+    this._unionRecruitTick();
+    this._unionStealthTick();
+
+    // risk to leader on manual recruit (one member only)
     if(Math.random()<(this.p.unionExpandDeath||0.10)){
       this._die("deathPoison","Executed by Yebra for terroristic activity while recruiting");
       return;
     }
-
-    // chain recruitment process
-    let gained=1; // manual recruit succeeds
-    const pass=(this.p.unionConvertPass||0.90);
-    const death=(this.p.unionConvertDeath||0.10);
-    let frontier=1;
-
-    while(frontier>0){
-      let next=0;
-      for(let i=0;i<frontier;i++){
-        const r=Math.random();
-        if(r<death){ /* recruit executed, no member added */ }
-        else if(r<death+pass){ gained++; next++; }
-        else { /* neither convert nor die */ }
-      }
-      frontier=next;
-      if(gained>5000) break; // safety cap
-    }
-
-    const before=this.s.unionMembers;
-    this.s.unionMembers=before+gained;
-    this._addLog("union",`Expanded union: +${gained} members (total ${this.s.unionMembers}).`);
+    this.s.unionMembers += 1;
+    this._addLog("union",`Recruited one new member. Total ${this.s.unionMembers}.`);
 
     if(this.s.unionMembers >= (this.p.revoltUnlockAt||1000))
       this._addLog("revolt","Workers' Revolt is now available.");
@@ -463,6 +493,12 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
       this._addLog("union","Union is in hiding; cannot build caches."); return;
     }
+
+    // Outlander action = 6 months
+    this.s.age += 0.5;
+    this._unionRecruitTick();
+    this._unionStealthTick();
+
     if(Math.random()<(this.p.unionCacheDeath||0.10)){
       this._die("deathAccident","Executed by Yebra drone for suspicious activity while building cache"); return;
     }
@@ -476,6 +512,12 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
       this._addLog("sabotage","Union is in hiding; cannot sabotage."); return;
     }
+
+    // Outlander action = 6 months
+    this.s.age += 0.5;
+    this._unionRecruitTick();
+    this._unionStealthTick();
+
     // base success 30%, +1% per 10 members
     const bonus=Math.floor((this.s.unionMembers||0)/10)*0.01;
     const successP=Math.min(0.90,0.30+bonus);
@@ -505,8 +547,16 @@ const Life = {
       const before=this.s.unionMembers;
       const after=Math.min(before,survivors);
       this.s.unionMembers=after;
-      this.s.unionHiddenUntil=(this.s.unionHiddenUntil||this.s.age)+(this.p.unionHideYears||4);
+
+      // go to ground — instant skip with risk (mirror purge)
       this._addLog("union",`Reprisals: union ${before}→${after}, went to ground for ${(this.p.unionHideYears||4)} years.`);
+      this.s.age += (this.p.unionHideYears||4);
+      if(Math.random()<0.20){
+        this._applyCivilianMortality();
+        if(!this.s.alive) return;
+      }
+      this.s.unionHiddenUntil = this.s.age;
+      this._addLog("union","Union resurfaced from hiding.");
     }
     this._renderStatus();
   },
@@ -553,8 +603,11 @@ const Life = {
     const hideTxt = (this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil)
       ? ` · In hiding until age ${this.s.unionHiddenUntil.toFixed(1)}`
       : "";
+
+    // HUD only once union has meaningful size (>=10)
+    const unionVisible = this.s.outlander && this.s.unionMembers>=10;
     this.ui.status.union.innerHTML =
-      (this.s.outlander
+      (unionVisible
         ? `<b>Union:</b> ${this.s.unionMembers} members · Caches:${this.s.unionCaches}${hideTxt} ${revoltAvail?'· Revolt READY':''}`
         : `<b>Union:</b> (join Outlanders to unlock)`);
 
