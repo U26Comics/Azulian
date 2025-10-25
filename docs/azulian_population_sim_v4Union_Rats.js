@@ -86,7 +86,7 @@ const Life = {
     infamySafariSuccess:5,     // +5 per successful safari
     infamyBloodSports:50,      // +50 when attending blood sports
     safariOutlanderDeath:0.10, // 10% killed by outlanders on safari
-    safariHookerDeath:0.05,    // 5% eviscerated by cybernetic hooker
+    safariHookerDeath:0.15,    // 15% eviscerated by cybernetic hooker
     bloodAnnihilateChance:0.10,// 10% per 6mo annihilation while flagged
     ratHunterAggroBonus:0.10,  // +10% weight to "killed by rat hunters" etc
     leagueConvertPass:0.90,    // recruitment like union
@@ -843,7 +843,7 @@ const Life = {
     this._advanceHalfYear();
 
     if(Math.random() < (this.p.safariHookerDeath||0.05)){
-      this._die("deathRival","Eviscerated by a cybernetic hooker in a chrome-lit pit.");
+      this._die("deathRival","Gutted by a cybernetic hooker and stripped for parts by magnet fishers.");
       return;
     }
     if(Math.random() < (this.p.safariOutlanderDeath||0.10)){
@@ -870,7 +870,7 @@ const Life = {
     this.s.bloodSports=true;
     this.s.annihilationActive=true;
     this._addLog("blood",`You attended blood sports. Infamy +${this.p.infamyBloodSports||50} → ${this.s.infamy}.`);
-    this._addLog("blood","Participants become mannequins with pulses. The floor keeps the stains.");
+    this._addLog("blood","Participants become mannequins with pulses. The floor drinks the stains.");
     this._renderStatus();
   },
 
@@ -925,7 +925,7 @@ const Life = {
     this._advanceHalfYear();
 
     if(Math.random()<(this.p.huntHunterDeath||0.05)){
-      this._die("deathRival","Gutted by Rat Hunters in a smoke-choked stairwell");
+      this._die("deathRival","Decapitated by Rat Hunters in a smoke-choked stairwell");
       return;
     }
 
@@ -935,7 +935,7 @@ const Life = {
     }
 
     if(this.s.cyberHooker){
-      this._addLog("league","Hunt succeeded with surgical precision. No witnesses, only rumors.");
+      this._addLog("league","Hunt succeeded with surgical precision and augmented brutality. No witnesses, only rumors.");
     }else{
       this._addLog("league","Hunt succeeded. Their fear tastes like tin.");
     }
