@@ -1,510 +1,598 @@
-// Azulian Life-Cycle & Population Simulators — Outlander + Labor Union Build
-// Carrd / GitHub compatible | Author: U26Comics | 2025
-
+/* Azulian Life-Cycle & Population Simulators — Bundled Build (Outlanders + Union)
+   Carrd/GitHub compatible. Single file. 2025-10-24
+   Exposes: window.AzulianLifeSim, window.AzulianSim
+*/
 (function(){
-  const eventColors = {
-    default:"#eaeaea",cycle:"#7ee7ff",success:"#8fff8f",
-    info:"#ffec8f",danger:"#ff8f8f"
+  // ========== Shared UI helpers ==========
+  const C = {
+    colors: {
+      default:"#eaeaea", cycle:"#7ee7ff", success:"#8fff8f",
+      info:"#ffec8f", danger:"#ff8f8f"
+    },
+    icons: {
+      reproduce:"🌸", wait:"🕰", deploy:"🚀",
+      husbandAdd:"💍", husbandDeath:"⚰️",
+      prestige:"🧬", jealousyKill:"🔪",
+      deathOld:"⏳", deathBattle:"☠️",
+      deathAccident:"⚙️", deathStarve:"🥀",
+      deathPoison:"💔", deathRival:"🩸",
+      union:"🛠️", cache:"📦", sabotage:"🧨", revolt:"🔥",
+      outlander:"🏹"
+    }
   };
-  const eventIcons = {
-    reproduce:"🌸",wait:"🕰",deploy:"🚀",
-    husbandAdd:"💍",husbandDeath:"⚰️",
-    prestige:"🧬",jealousyKill:"🔪",
-    deathOld:"⏳",deathBattle:"☠️",
-    deathAccident:"⚙️",deathStarve:"🥀",
-    deathPoison:"💔",deathRival:"🩸"
-  };
-
-  // Utility
-  function rnd(min,max){min|=0;max|=0;return Math.floor(Math.random()*(max-min+1))+min;}
-  function el(tag,attrs={},children=[]){
+  const rnd=(a,b)=>{a|=0;b|=0;return Math.floor(Math.random()*(b-a+1))+a;};
+  const el=(tag,attrs={},children=[])=>{
     const n=document.createElement(tag);
-    for(const[k,v]of Object.entries(attrs)){
-      if(k==="style"&&typeof v==="object")Object.assign(n.style,v);
-      else if(k.startsWith("on")&&typeof v==="function")n[k]=v;
-      else if(k==="text")n.textContent=v;
+    for(const[k,v] of Object.entries(attrs)){
+      if(k==="style"&&v&&typeof v==="object") Object.assign(n.style,v);
+      else if(k.startsWith("on")&&typeof v==="function") n[k]=v;
+      else if(k==="text") n.textContent=v;
       else n.setAttribute(k,v);
     }
     (Array.isArray(children)?children:[children]).forEach(c=>c&&n.appendChild(c));
     return n;
-  }
+  };
 
-  // persistent world state
-  window.AzulianWorld = window.AzulianWorld || { revoltSuccesses:0, globalAdvantage:false };
-
-  window.AzulianLifeSim = {
-    // ---------- Parameters ----------
+  // ========================================================================
+  // LIFE-CYCLE SIM
+  // ========================================================================
+  const Life = {
+    // ---------- Tunables ----------
     p:{
       baseLifeIfProven:120, baseLifeIfNeverProven:80,
-      rookieMortality:0.8, provenMortality:0.2,
-      deployYears:4, civilianAnnualMortality:0.15,
-      senescentAnnual:0.05, gestationMonths:6,
-      litterMin:1, litterMax:6, juvenileSurvival:0.7,
-      provisioningBonusPerHusband:0.05, husbandsMax:6,
-      socialConflictRiskPerYearOverCap:0.15,
-      prestigeBoostBeta:0.5, prestigeThreshold:4,
-      daughterProvenProb:0.2,
+      rookieMortality:0.80, provenMortality:0.20,
+      deployYears:4,
+      civilianAnnualMortality:0.15,  // base on-world risk (per year)
+      senescentAnnual:0.05,          // extra per year beyond cap
+      gestationMonths:6, litterMin:1, litterMax:6,
+      juvenileSurvival:0.70,
+      provisioningBonusPerHusband:0.05,
+      husbandsMax:6, socialConflictRiskPerYearOverCap:0.15,
+      prestigeBoostBeta:0.50, prestigeThreshold:4,
+      daughterProvenProb:0.20,
 
-      // Outlander + Union tuning
-      outlanderDeathAdvantage:true,
-      sabotageBaseSuccess:0.30,
-      unionStealthFail:0.10,
-      unionExpandDeath:0.10,
-      unionCacheDeath:0.10,
-      unionSabotageDeath:0.10,
-      unionAutoConvertProb:0.90,
-      unionAutoExecutedProb:0.10,
-      unionSurvivorsPerCache:10,
-      unionHidingYears:4
+      // Outlanders/Union parameters
+      outlanderAdvantage:0.50,     // halves civilian death probability (advantage style)
+      unionConvertPass:0.90,       // chance a newly-added member auto-converts 1 more in 6mo
+      unionConvertDeath:0.10,      // chance that new member is executed instead of converting
+      unionExpandDeath:0.10,       // chance leader is executed when clicking Expand Union
+      unionCacheDeath:0.10,        // chance leader is executed by drone when building cache
+      unionStealthFail:0.10,       // per 6mo stealth check across union; fail => mass execution
+      unionCacheSave:10,           // members per cache who can go-to-ground survive purge
+      unionHideYears:4,            // years forced hiding after a purge
+      revoltUnlockAt:1000,         // members required to unlock Workers Revolt
+      revoltBaseSuccess:0.10,      // base success
+      revoltStackBonus:0.10        // +10% per past successful revolt (stacking across cycles)
     },
 
+    // ---------- State ----------
     s:{}, cycleCount:0, ui:{}, currentCycleBody:null,
-    // ---------- Mount & UI ----------
+    global:{ outlanderAdvantageUnlocked:false, successfulRevolts:0 },
+
+    // ---------- Mount / UI ----------
     mount(containerId="azulian-life-sim"){
       const root=document.getElementById(containerId);
-      if(!root){console.error("[AzulianLifeSim] Missing container #"+containerId);return;}
+      if(!root){ console.error("[AzulianLifeSim] missing container"); return; }
+
       root.innerHTML="";
       root.appendChild(el("h3",{text:"Azulian Life-Cycle Simulator"}));
 
       const grid=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",alignItems:"start"}});
       const left=el("div");
-
       this.ui.status={
-        status:el("p"),age:el("p"),tours:el("p"),
-        husbands:el("p"),prestige:el("p"),
-        children:el("p"),gis:el("p")
+        status:el("p"), age:el("p"), tours:el("p"),
+        husbands:el("p"), prestige:el("p"),
+        children:el("p"), gis:el("p"),
+        union:el("p")
       };
       left.append(
         this.ui.status.status,this.ui.status.age,this.ui.status.tours,
         this.ui.status.husbands,this.ui.status.prestige,
-        this.ui.status.children,this.ui.status.gis
+        this.ui.status.children,this.ui.status.gis,this.ui.status.union
       );
 
-      // controls
-      const controls=el("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"6px"}},[
-        el("button",{id:"btn-repro",text:"Reproduce",onclick:()=>this.reproduce()}),
-        el("button",{id:"btn-wait",text:"Wait 6 mo",onclick:()=>this.wait()}),
-        el("button",{id:"btn-deploy",text:"Deploy 4 y",onclick:()=>this.deploy()}),
-        el("button",{id:"btn-husb",text:"Add Husband",onclick:()=>this.addHusband()}),
-        el("button",{id:"btn-reset",text:"Reset (New Cycle)",onclick:()=>this.reset()}),
-        el("button",{id:"btn-join-out",text:"Join Outlanders",onclick:()=>this.joinOutlanders()}),
-        el("button",{id:"btn-start-un",text:"Start Labor Union",onclick:()=>this.startUnion()}),
-        el("button",{id:"btn-exp-un",text:"Expand Union",onclick:()=>this.expandUnion()}),
-        el("button",{id:"btn-cache",text:"Build Supply Cache",onclick:()=>this.buildCache()}),
-        el("button",{id:"btn-sab",text:"Sabotage Yebra Property",onclick:()=>this.sabotageYebra()}),
-        el("button",{id:"btn-revolt",text:"Start Worker’s Revolt",onclick:()=>this.startRevolt()})
-      ]);
+      // Controls (we keep refs to toggle visibility)
+      const controls=el("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"6px"}});
+      this.ui.btnRepro = el("button",{text:"Reproduce",onclick:()=>this.reproduce()});
+      this.ui.btnWait  = el("button",{text:"Wait 6mo",onclick:()=>this.wait()});
+      this.ui.btnDeploy= el("button",{text:"Deploy 4y",onclick:()=>this.deploy()});
+      this.ui.btnHusb  = el("button",{text:"Add Husband",onclick:()=>this.addHusband()});
+      this.ui.btnReset = el("button",{text:"Reset (New Cycle)",onclick:()=>this.reset()});
+
+      // Outlander / Union buttons (contextual)
+      this.ui.btnOut  = el("button",{text:"Join Outlanders",onclick:()=>this.joinOutlanders()});
+      this.ui.btnUnion= el("button",{text:"Start Labor Union",onclick:()=>this.startUnion()});
+      this.ui.btnExpand = el("button",{text:"Expand Union",onclick:()=>this.expandUnion()});
+      this.ui.btnCache  = el("button",{text:"Build Supply Cache",onclick:()=>this.buildCache()});
+      this.ui.btnSabot  = el("button",{text:"Sabotage Yebra Property",onclick:()=>this.sabotage()});
+      this.ui.btnRevolt = el("button",{text:"Start Workers' Revolt",onclick:()=>this.revolt()});
+
+      controls.append(
+        this.ui.btnRepro,this.ui.btnWait,this.ui.btnDeploy,this.ui.btnHusb,
+        this.ui.btnOut,this.ui.btnUnion,this.ui.btnExpand,this.ui.btnCache,this.ui.btnSabot,this.ui.btnRevolt,
+        this.ui.btnReset
+      );
       left.appendChild(controls);
 
-      // union HUD
-      this.ui.unionHUD=el("div",{id:"union-hud",style:{
-        marginTop:"8px",padding:"8px",border:"1px solid #444",
-        borderRadius:"8px",background:"#0b0b0b",display:"none"
-      }},[
-        el("div",{id:"union-line",text:"Union: 0 members • 0 caches • idle"}),
-        el("div",{style:{marginTop:"6px",height:"8px",background:"#222",borderRadius:"4px"}},[
-          el("div",{id:"union-bar",style:{height:"8px",width:"0%",background:"#5bd15b",borderRadius:"4px"}})
-        ])
-      ]);
-      left.appendChild(this.ui.unionHUD);
-
       const right=el("div");
-      const logBox=el("div",{id:"life-log",style:{
-        maxHeight:"320px",overflow:"auto",border:"1px solid #444",
-        padding:"8px",borderRadius:"8px",background:"#111"}});
+      const logBox=el("div",{id:"life-log",style:{maxHeight:"320px",overflow:"auto",border:"1px solid #444",padding:"8px",borderRadius:"8px",background:"#111"}});
       right.appendChild(logBox);
       grid.append(left,right);
       root.appendChild(grid);
 
-      this.ui.root=root;this.ui.logBox=logBox;
-      this._initLife();this._renderStatus();this._newCycle();
+      root.appendChild(el("p",{style:{fontSize:"12px",opacity:"0.8"},text:
+        "Deaths: ⏳ old age (80+ only), ☠️ battle, ⚙️ accident, 🥀 starvation, 💔 poisoning, 🩸 rival House. " +
+        "Outlanders gain death-save advantage ashore and unlock labor-union play; deploying while Outlander = summary execution."}));
+
+      this.ui.root=root; this.ui.logBox=logBox;
+      this._initLife(); this._renderStatus(); this._newCycle();
     },
 
-    // ---------- Logging ----------
+    // ---------- Log ----------
     _addLog(type,msg){
-      const icon=(eventIcons[type]||"");
-      const color=type.startsWith("death")?eventColors.danger:
-        (type==="prestige"?eventColors.success:
-        (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)?eventColors.info:eventColors.default));
+      const icon=(C.icons[type]||"");
+      const color =
+        type.startsWith("death") ? C.colors.danger :
+        (type==="prestige"||type==="union"||type==="revolt"||type==="cache"||type==="sabotage" ? C.colors.success :
+         (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)? C.colors.info : C.colors.default));
       const entry=el("div");
       entry.innerHTML=`${icon} <span style="color:${color}">${msg}</span>`;
       entry.style.opacity="0.3";
       if(this.currentCycleBody){
         this.currentCycleBody.appendChild(entry);
-        let o=0.3;const fade=setInterval(()=>{o+=0.05;entry.style.opacity=String(o);if(o>=1)clearInterval(fade);},30);
+        let o=0.3;const f=setInterval(()=>{o+=0.05;entry.style.opacity=String(o);if(o>=1)clearInterval(f);},30);
       }
-      if(this.ui.logBox)this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
+      if(this.ui.logBox) this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
     },
-
     _newCycle(){
       this.cycleCount++;
       const wrap=el("details",{open:true});
       const sum=el("summary");
-      sum.innerHTML=`<span style="color:${eventColors.cycle};font-weight:600;">
-        🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.</span>`;
+      sum.innerHTML=`<span style="color:${C.colors.cycle};font-weight:600;">🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.</span>`;
       const body=el("div",{class:"cycle-body",style:{marginLeft:"1em"}});
       wrap.append(sum,body);
       this.ui.logBox.appendChild(wrap);
       this.currentCycleBody=body;
+      this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
     },
 
+    // ---------- Init / helpers ----------
     _initLife(){
       this.s={
-        age:16,alive:true,proven:false,deployments:0,
-        husbands:0,husbandAges:[],children:[],
-        daughtersProven:0,daughtersTotal:0,
-        prestige:0,highPrestige:false,
-        outlander:false,unionActive:false,unionMembers:0,unionCaches:0,
-        unionInHiding:false,unionHidingUntilAge:null,unlockedRevolt:false,pending:[]
+        age:16, alive:true, proven:false, deployments:0,
+        husbands:0, husbandAges:[],
+        children:[], daughtersProven:0, daughtersTotal:0,
+        prestige:0, highPrestige:false,
+
+        // Outlanders/Union
+        outlander:false,
+        unionMembers:0, unionCaches:0,
+        unionHiddenUntil:null, // age when hiding ends
+        lastStealthTickAge:16 // for 6mo union stealth checks
       };
     },
-
     _lifeCap(){
       const base=this.s.proven?this.p.baseLifeIfProven:this.p.baseLifeIfNeverProven;
-      return base+(this.s.deployments|0)*(this.p.deployYears??4);
+      return base + (this.s.deployments|0)*(this.p.deployYears??4);
     },
-    _tickHalfYear(){
-      this._processPending();
-      if(this.s.unionActive && !this.s.unionInHiding && this.s.unionMembers>0){
-        if(Math.random()<(this.p.unionStealthFail??0.10)){
-          const caches=this.s.unionCaches|0;
-          const survPer=this.p.unionSurvivorsPerCache??10;
-          const survivors=Math.min(this.s.unionMembers,caches*survPer);
-          this.s.unionInHiding=true;
-          this.s.unionHidingUntilAge=this.s.age+(this.p.unionHidingYears??4);
-          this._addLog("deathPoison",`Union purge! Entering hiding for ${this.p.unionHidingYears} years. Survivors preserved: ${survivors}.`);
-          this.s.unionMembers=survivors;
-          if(Math.random()<0.20)this._forceCivilianEvent();
+    _updatePrestige(){
+      const d=this.s.daughtersTotal|0, dp=this.s.daughtersProven|0;
+      const prev=+this.s.prestige||0;
+      const frac=d>0?(dp/d):0;
+      this.s.prestige=Math.min(1,Math.max(0,frac));
+      this.s.highPrestige = dp >= (this.p.prestigeThreshold??4);
+      if((prev<0.5&&this.s.prestige>=0.5)||(prev<1&&this.s.prestige===1))
+        this._addLog("prestige","Prestige increased!");
+    },
+    _roll(p){ return Math.random() < (Number.isFinite(p)?p:0); },
+    _advantage(p){ // simple “advantage” on survival by halving death prob
+      return Math.max(0, p * (1 - (this.p.outlanderAdvantage || 0)));
+    },
+    _checkHusbands(){
+      const alive=[];
+      for(const hAge of (this.s.husbandAges||[])){
+        if((this.s.age - hAge) > 104) this._addLog("husbandDeath","Husband died of old age.");
+        else alive.push(hAge);
+      }
+      this.s.husbandAges=alive;
+      this.s.husbands=alive.length;
+      if(this.s.husbands>=2){
+        const jealousP=0.005*(this.s.husbands-1);
+        if(Math.random()<jealousP){
+          this.s.husbands-=1; this.s.husbandAges.pop();
+          this._addLog("jealousyKill","One husband killed another out of jealousy.");
         }
       }
-      if(this.s.unionInHiding && this.s.unionHidingUntilAge && this.s.age>=this.s.unionHidingUntilAge){
-        this.s.unionInHiding=false;this.s.unionHidingUntilAge=null;
-        this._addLog("info","Came out of hiding. Union may resume.");
-      }
-      this.s.unlockedRevolt=(this.s.unionMembers>=1000);
     },
 
-    _processPending(){
-      if(!Array.isArray(this.s.pending))this.s.pending=[];
-      const now=this.s.age;const remain=[];
-      for(const job of this.s.pending){
-        if(job.atAge<=now && job.type==="unionAuto"){
-          if(!this.s.unionActive||this.s.unionInHiding)continue;
-          const current=this.s.unionMembers|0;
-          if(current<=0)continue;
+    // ---------- Mortality ----------
+    _applyCivilianMortality(lastAction=null){
+      if(!this.s.alive) return;
+      this._checkHusbands();
 
-          // soft cap scales with caches
-          const maxMembers=10000+(this.s.unionCaches*1000);
-          if(current>=maxMembers){
-            this._addLog("info",`Union at max sustainable size (${maxMembers}).`);
-            continue;
-          }
-
-          let added=0,lost=0;
-          for(let i=0;i<current;i++){
-            if(Math.random()<(this.p.unionAutoConvertProb??0.9))added++;
-            else lost++;
-          }
-          const newTotal=Math.min(maxMembers,Math.max(0,this.s.unionMembers+added-lost));
-          const gain=newTotal-this.s.unionMembers;
-          this.s.unionMembers=newTotal;
-          if(gain>0)this._addLog("prestige",`Union grew +${gain}.`);
-          if(lost>0)this._addLog("deathPoison",`${lost} members executed.`);
-          if(this.s.unionActive&&!this.s.unionInHiding&&this.s.unionMembers>0&&this.s.unionMembers<maxMembers)
-            this.s.pending.push({atAge:this.s.age+0.5,type:"unionAuto"});
-        }else remain.push(job);
+      // base half-year risk (apply Outlander/global advantage)
+      let p=(this.p.civilianAnnualMortality??0.15)*0.5;
+      const cap=this._lifeCap();
+      if(this.s.age>cap){
+        const yrs=this.s.age-cap;
+        p = Math.min(0.99, p + yrs*(this.p.senescentAnnual??0.05)*0.5);
       }
-      this.s.pending=remain;
-    },
+      if(this.global.outlanderAdvantageUnlocked || this.s.outlander) p=this._advantage(p);
 
-    _forceCivilianEvent(){
-      const pool=[
+      if(!this._roll(p)){ this._unionStealthTick(); return; } // survived roll ⇒ still need union stealth checks
+
+      // special retaliation if just attempted husband and unproven
+      if(lastAction==="husbandAttempt" && !this.s.proven && Math.random()<0.10){
+        this._die("deathRival","Killed by prospective husband's House"); return;
+      }
+
+      // build pools
+      const civilianExtra = [
+        ["deathRival","Killed by rival wicker gang",0.12],
+        ["deathRival","Killed by rat hunters",0.12],
+        ["deathRival","Killed in worker uprising",0.10],
+        ["deathAccident","Died of infection",0.10],
+        ["deathPoison","Executed by Yebra for illegal farming",0.10],
+        ["deathPoison","Executed by Yebra for sabotage",0.10],
+        ["deathPoison","Executed by Yebra for terroristic activity",0.10],
+        ["deathPoison","Executed by Yebra for involvement in organized crime",0.10]
+      ];
+      const veteranExtra = [
+        ["deathRival","Killed in a duel",0.12],
+        ["deathRival","Killed by outlanders while rat hunting",0.10],
+        ["deathPoison","Killed by angry prostitute while slumming",0.10],
+        ["deathAccident","Overdosed",0.10],
+        ["deathPoison","Executed for Posadist-terror cell activities",0.10],
+        ["deathPoison","Executed for space piracy",0.10],
+        ["deathPoison","Executed for violating Yebra patent law",0.10],
+        ["deathRival","Killed in a drunken brawl",0.10]
+      ];
+      const base = [
         ["deathAccident","Died in workplace accident",0.15],
         ["deathStarve","Starved to death",0.15],
-        ...(this.s.husbands>0?[["deathPoison","Poisoned by jealous husband",0.10)]]:[]),
+        ...(this.s.husbands>0 ? [["deathPoison","Poisoned by jealous husband",0.10)] : []),
         ["deathRival","Killed by rival House",0.10]
       ];
-      const total=pool.reduce((a,[,,w])=>a+w,0);
-      let r=Math.random()*total;
-      for(const [t,m,w]of pool){r-=w;if(r<=0){this._die(t,m);return;}}
-      this._die("deathAccident","Died mysteriously.");
+
+      let pool=[...base];
+      if(!this.s.proven && this.s.deployments===0) pool.push(...civilianExtra);
+      else pool.push(...veteranExtra);
+
+      if(this.s.age>=80) pool.push(["deathOld","Died of old age",0.25]);
+
+      // pick weighted cause
+      const totalW=pool.reduce((a,[, ,w])=>a+w,0);
+      let r=Math.random()*totalW;
+      for(const [type,msg,w] of pool){ r-=w; if(r<=0){ this._die(type,msg); return; } }
+      this._die("deathAccident","Died in unexplained circumstances");
     },
-    // ---------- Outlander + Union Actions ----------
-    joinOutlanders(){
-      if(!this.s.alive)return;
-      if(this.s.proven||this.s.deployments>0){
-        this._addLog("info","Cannot join after deployment.");return;
+
+    // ---------- Union stealth tick every 6 months ----------
+    _unionStealthTick(){
+      if(!this.s.outlander || this.s.unionMembers<=0) return;
+      // run once per 0.5y
+      if(this.s.age - (this.s.lastStealthTickAge||0) < 0.5) return;
+      this.s.lastStealthTickAge = this.s.age;
+
+      // global stealth save for union
+      if(Math.random() < (this.p.unionStealthFail||0.10)){
+        // purge
+        const caches = this.s.unionCaches|0;
+        const survivors = caches * (this.p.unionCacheSave||10);
+        const before = this.s.unionMembers;
+        const after = Math.min(before, survivors);
+        this.s.unionMembers = after;
+        this._addLog("union",`Union purge by Yebra. Members ${before} → ${after}.`);
+        // go to ground (hiding)
+        this.s.unionHiddenUntil = (this.s.unionHiddenUntil||this.s.age) + (this.p.unionHideYears||4);
+        this._addLog("union",`Union in hiding for ${(this.p.unionHideYears||4)} years.`);
       }
-      this.s.outlander=true;
-      this._addLog("prestige","Joined Outlanders: death saves advantaged, deploy locked.");
+    },
+
+    // ---------- Actions ----------
+    addHusband(){
+      if(!this.s.alive) return;
+      if(!this.s.proven){
+        const rejected=Math.random()<0.95;
+        this.s.age+=0.5;
+        if(rejected){
+          this._addLog("info","💔 Rejected by prospective husband for being poor.");
+          this._applyCivilianMortality("husbandAttempt");
+          this._renderStatus();
+          return;
+        }
+      }
+      this.s.husbands+=1; (this.s.husbandAges||[]).push(this.s.age);
+      this._addLog("husbandAdd",`Took another husband. Total=${this.s.husbands}.`);
       this._renderStatus();
     },
-
-    startUnion(){
-      if(!this.s.alive||!this.s.outlander)return;
-      if(this.s.unionActive)return;
-      this.s.unionActive=true;this.s.unionMembers=Math.max(1,this.s.unionMembers|0);
-      this._addLog("prestige","Started Labor Union. New actions unlocked.");
+    reproduce(){
+      if(!this.s.alive) return;
+      if((this.s.husbands||0)<1){ this._addLog("info","You cannot reproduce without at least one husband."); return; }
+      const litter=rnd((this.p.litterMin??1),(this.p.litterMax??6));
+      const jBase=this.p.juvenileSurvival??0.7;
+      const bonus=(this.p.provisioningBonusPerHusband??0.05)*Math.max(0,(this.s.husbands|0)-1);
+      const j=Math.min(0.95,Math.max(0,jBase*(1+bonus)));
+      let survive=0, daughters=0, proved=0;
+      for(let i=0;i<litter;i++){
+        const sex=Math.random()<0.5?"F":"M";
+        const adult=this._roll(j);
+        let pv=false;
+        if(sex==="F"&&adult) pv=this._roll(this.p.daughterProvenProb??0.2);
+        this.s.children.push({sex,adult,proven:pv});
+        if(adult) survive++;
+        if(sex==="F"){ daughters++; if(pv) proved++; }
+      }
+      this.s.daughtersTotal+=daughters; this.s.daughtersProven+=proved;
+      this._updatePrestige();
+      this.s.age+=0.5;
+      this._addLog("reproduce",`Reproduced: litter=${litter}, adults=${survive}, F=${daughters}, ProvenF+${proved}. Age→${this.s.age.toFixed(1)}`);
+      this._applyCivilianMortality();
       this._renderStatus();
     },
-
-    expandUnion(){
-      if(!this.s.alive)return;
-      if(!this.s.unionActive||this.s.unionInHiding){this._addLog("info","Union inactive.");return;}
-      if(Math.random()<(this.p.unionExpandDeath??0.1)){this._die("deathPoison","Executed for terroristic activity");return;}
-      this.s.unionMembers++;
-      this._addLog("prestige","Expanded Union +1 member.");
-      this.s.pending.push({atAge:this.s.age+0.5,type:"unionAuto"});
-      this.s.age+=0.5;this._tickHalfYear();this._applyCivilianMortality();this._renderStatus();
+    wait(){
+      if(!this.s.alive) return;
+      this.s.age+=0.5;
+      // if hiding period active, count down silently (but normal civilian risks still apply)
+      if(this.s.unionHiddenUntil && this.s.age>=this.s.unionHiddenUntil){
+        this.s.unionHiddenUntil=null;
+        this._addLog("union","Union resurfaced from hiding.");
+      }
+      this._addLog("wait",`Waited 6 months. Age→${this.s.age.toFixed(1)}`);
+      this._applyCivilianMortality();
+      this._renderStatus();
     },
-
-    buildCache(){
-      if(!this.s.unionActive||this.s.unionInHiding)return;
-      if(Math.random()<(this.p.unionCacheDeath??0.1)){this._die("deathAccident","Executed by drone for suspicious activity");return;}
-      this.s.unionCaches++;this._addLog("prestige",`Built cache. Total ${this.s.unionCaches}.`);
-      this.s.age+=0.5;this._tickHalfYear();this._applyCivilianMortality();this._renderStatus();
-    },
-
-    sabotageYebra(){
-      if(!this.s.unionActive||this.s.unionInHiding)return;
-      if(Math.random()<(this.p.unionSabotageDeath??0.1)){this._die("deathPoison","Executed for sabotage");return;}
-      const base=(this.p.sabotageBaseSuccess??0.3);
-      const bonus=Math.floor(this.s.unionMembers/10)*0.01;
-      const success=Math.random()<Math.min(0.95,base+bonus);
-      if(success)this._addLog("prestige","Sabotage successful.");
-      else this._addLog("info","Sabotage failed silently.");
-      this.s.age+=0.5;this._tickHalfYear();this._applyCivilianMortality();this._renderStatus();
-    },
-
-    startRevolt(){
-      if(!this.s.unlockedRevolt)return;
-      const prev=window.AzulianWorld.revoltSuccesses||0;
-      const p=Math.min(0.95,0.10+0.10*prev);
-      if(Math.random()<p){
-        window.AzulianWorld.revoltSuccesses=prev+1;
-        window.AzulianWorld.globalAdvantage=true;
-        this._addLog("prestige",`Worker's Revolt succeeded! Global death-save advantage unlocked.`);
-      }else this._addLog("info","Worker's Revolt failed.");
-      this.s.age+=0.5;this._tickHalfYear();this._applyCivilianMortality();this._renderStatus();
-    },
-
     deploy(){
-      if(this.s.outlander){this._die("deathPoison","Executed by Yebra for Terroristic Affiliations");return;}
+      if(!this.s.alive) return;
+      if(this.s.outlander){
+        this._die("deathPoison","Executed by Yebra for terroristic affiliations when attempting to deploy");
+        return;
+      }
       const first=!this.s.proven;
       let m=first?(this.p.rookieMortality??0.8):(this.p.provenMortality??0.2);
-      m=Math.max(0,m*(1-(this.p.prestigeBoostBeta??0.5)*(+this.s.prestige||0)));
+      m=Math.max(0, m*(1-(this.p.prestigeBoostBeta??0.5)*(+this.s.prestige||0)));
       const survived=!this._roll(m);
-      this.s.age+=(this.p.deployYears??4);this.s.deployments++;
-      if(survived){if(first)this.s.proven=true;this._addLog("deploy",`Deployment ${this.s.deployments} survived.`);}
-      else{if(Math.random()<0.33)this._die("deathBattle","Thrown from airlock after failed QC");else this._die("deathBattle","Died in battle");}
+      this.s.age+=(this.p.deployYears??4);
+      this.s.deployments+=1;
+      if(survived){
+        if(first) this.s.proven=true;
+        this._addLog("deploy",`Deployment ${this.s.deployments} survived. Mortality ${(m*100).toFixed(1)}%. Age→${this.s.age}`);
+      }else{
+        if(Math.random()<0.33) this._die("deathBattle","Thrown from airlock after failed QC");
+        else this._die("deathBattle","Died in battle");
+        return;
+      }
       this._renderStatus();
     },
 
-    // ---------- Status & Reset ----------
-    _renderStatus(){
-      if(!this.ui.status)return;
-      const cap=this._lifeCap();
-      const total=(this.s.children?.length)||0;
-      this.ui.status.status.innerHTML=`<b>Status:</b> ${this.s.alive?'Alive':'Dead'}`;
-      this.ui.status.age.innerHTML=`<b>Age:</b> ${this.s.age.toFixed(1)} / Cap ${cap.toFixed(1)}`;
-      this.ui.status.husbands.innerHTML=`<b>Husbands:</b> ${this.s.husbands}`;
-      const show=(id,on)=>{const b=this.ui.root.querySelector('#'+id);if(b)b.style.display=on?"":"none";};
-      const undeployed=!this.s.proven&&this.s.deployments===0;
-      show("btn-join-out",undeployed&&!this.s.outlander);
-      show("btn-start-un",this.s.outlander&&!this.s.unionActive&&!this.s.unionInHiding);
-      const active=this.s.unionActive&&!this.s.unionInHiding;
-      show("btn-exp-un",active);show("btn-cache",active);show("btn-sab",active);
-      show("btn-revolt",active&&this.s.unionMembers>=1000);
-      const hud=this.ui.unionHUD;if(hud){const visible=(this.s.unionMembers>=10)||this.s.unionActive||this.s.unionInHiding;
-        hud.style.display=visible?"":"none";const line=hud.querySelector("#union-line"),bar=hud.querySelector("#union-bar");
-        const mem=this.s.unionMembers|0,caches=this.s.unionCaches|0,state=this.s.unionInHiding?"in hiding":(this.s.unionActive?"active":"dormant");
-        line.textContent=`Union: ${mem} members • ${caches} caches • ${state}`;bar.style.width=Math.min(100,mem/1000*100)+"%";}
+    // ---------- Outlanders & Union ----------
+    joinOutlanders(){
+      if(!this.s.alive) return;
+      if(this.s.proven){ this._addLog("outlander","Cannot join Outlanders after deploying."); return; }
+      if(this.s.outlander){ this._addLog("outlander","Already aligned with Outlanders."); return; }
+      this.s.outlander=true;
+      this._addLog("outlander","Joined Outlanders. Civilian death risk reduced; deployment locked. Union play unlocked.");
+      this._renderStatus();
+    },
+    startUnion(){
+      if(!this.s.alive||!this.s.outlander) return;
+      if(this.s.unionMembers>0){ this._addLog("union","Union already formed."); return; }
+      if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
+        this._addLog("union","Union is in hiding; cannot operate yet."); return;
+      }
+      this.s.unionMembers=1;
+      this._addLog("union","Started a labor union (1 member).");
+      this._renderStatus();
+    },
+    expandUnion(){
+      if(!this.s.alive||!this.s.outlander||this.s.unionMembers<=0) return;
+      if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
+        this._addLog("union","Union is in hiding; cannot expand."); return;
+      }
+      // leader risk on expand
+      if(Math.random()< (this.p.unionExpandDeath||0.10)){ this._die("deathPoison","Executed by Yebra for terroristic activity while recruiting"); return; }
+      // add one member now
+      let gained=1; // manual recruit succeeds
+      // chain: for each *new* member this tick (starting with 1), roll auto-convert vs executed
+      const pass = (this.p.unionConvertPass||0.90), death=(this.p.unionConvertDeath||0.10);
+      let frontier=1;
+      while(frontier>0){
+        let next=0;
+        for(let i=0;i<frontier;i++){
+          const r=Math.random();
+          if(r<death){ /* that recruit got executed; no new member */ }
+          else if(r<death+pass){ gained++; next++; }
+          else { /* nothing */ }
+        }
+        frontier=next;
+        // safety cap to avoid infinite theoretical expansion in one tick
+        if(gained>5000) break;
+      }
+      const before=this.s.unionMembers;
+      this.s.unionMembers = before + gained;
+      this._addLog("union",`Expanded union: +${gained} members (total ${this.s.unionMembers}).`);
+
+      // check unlocks
+      if(this.s.unionMembers >= (this.p.revoltUnlockAt||1000))
+        this._addLog("revolt","Workers' Revolt is now available.");
+
+      this._renderStatus();
+    },
+    buildCache(){
+      if(!this.s.alive||!this.s.outlander||this.s.unionMembers<=0) return;
+      if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
+        this._addLog("union","Union is in hiding; cannot build caches."); return;
+      }
+      if(Math.random()< (this.p.unionCacheDeath||0.10)){ this._die("deathAccident","Executed by Yebra drone for suspicious activity while building cache"); return; }
+      this.s.unionCaches += 1;
+      this._addLog("cache",`Built supply cache (${this.s.unionCaches} total). During purges, each cache preserves ${this.p.unionCacheSave||10} members.`);
+      this._renderStatus();
+    },
+    sabotage(){
+      if(!this.s.alive||!this.s.outlander||this.s.unionMembers<=0) return;
+      if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
+        this._addLog("sabotage","Union is in hiding; cannot sabotage."); return;
+      }
+      // base success 30%, +1% per 10 members
+      const bonus = Math.floor((this.s.unionMembers||0)/10) * 0.01;
+      const successP = Math.min(0.90, 0.30 + bonus);
+      if(Math.random()<successP) this._addLog("sabotage",`Sabotage successful (p=${(successP*100).toFixed(0)}%).`);
+      else this._addLog("sabotage","Sabotage failed; lay low.");
+      this._renderStatus();
+    },
+    revolt(){
+      if(!this.s.alive||!this.s.outlander||this.s.unionMembers < (this.p.revoltUnlockAt||1000)) return;
+      if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
+        this._addLog("revolt","Union is in hiding; cannot revolt."); return;
+      }
+      const p = (this.p.revoltBaseSuccess||0.10) + (this.global.successfulRevolts||0)*(this.p.revoltStackBonus||0.10);
+      if(Math.random()<p){
+        this.global.successfulRevolts = (this.global.successfulRevolts||0)+1;
+        this.global.outlanderAdvantageUnlocked = true;
+        this._addLog("revolt",`Workers' Revolt succeeded! Future cycles gain Outlander death-save advantage (stacked successes: ${this.global.successfulRevolts}).`);
+      }else{
+        this._addLog("revolt",`Workers' Revolt failed (p=${(p*100).toFixed(0)}%). Heavy reprisals follow.`);
+        // immediate purge logic similar to stealth fail
+        const caches=this.s.unionCaches|0, survivors=caches*(this.p.unionCacheSave||10);
+        const before=this.s.unionMembers; const after=Math.min(before,survivors);
+        this.s.unionMembers=after;
+        this.s.unionHiddenUntil=(this.s.unionHiddenUntil||this.s.age)+(this.p.unionHideYears||4);
+        this._addLog("union",`Reprisals: union ${before}→${after}, went to ground for ${(this.p.unionHideYears||4)} years.`);
+      }
+      this._renderStatus();
     },
 
-    reset(){this._initLife();this._renderStatus();this._newCycle();}
+    // ---------- Death ----------
+    _die(type,msg){
+      this.s.alive=false;
+      this._addLog(type,`${msg}. Final age ${this.s.age.toFixed(1)}.`);
+      this._renderStatus();
+    },
+
+    // ---------- Status / HUD ----------
+    _computeGIS(){
+      let score=0,max=0;
+      for(const ch of (this.s.children||[])){
+        max+=3; if(ch.adult) score+=1; if(ch.proven) score+=2;
+      }
+      const norm=max>0?Math.round(100*score/max):0;
+      return {score,max,norm};
+    },
+    _renderStatus(){
+      if(!this.ui.status) return;
+      const cap=this._lifeCap();
+      const gis=this._computeGIS();
+      const total=(this.s.children?.length)||0;
+      const adults=(this.s.children?.filter(c=>c.adult).length)||0;
+      const df=(this.s.children?.filter(c=>c.sex==='F').length)||0;
+      const dp=this.s.daughtersProven||0;
+
+      this.ui.status.status.innerHTML = `<b>Status:</b> ${this.s.alive?'Alive':'Dead'} ${this.s.outlander?'· Outlander':''}`;
+      this.ui.status.age.innerHTML    = `<b>Age:</b> ${this.s.age.toFixed(1)} / Cap ${cap.toFixed(1)}`;
+      this.ui.status.tours.innerHTML  = `<b>Deployments:</b> ${this.s.deployments|0}`;
+      this.ui.status.husbands.innerHTML=`<b>Husbands:</b> ${this.s.husbands|0}`;
+      this.ui.status.prestige.innerHTML=`<b>Prestige:</b> ${Math.round((+this.s.prestige||0)*100)}% · Proven daughters: ${dp}/${this.s.daughtersTotal|0}`;
+      this.ui.status.children.innerHTML=`<b>Children:</b> ${total} total; ${adults} adults; ${df} daughters; ${dp} proven daughters`;
+      this.ui.status.gis.innerHTML    = `<b>GIS:</b> ${gis.score}/${gis.max} (${gis.norm}%)`;
+
+      // Union HUD
+      const revoltAvail = (this.s.outlander && this.s.unionMembers >= (this.p.revoltUnlockAt||1000));
+      const hideTxt = (this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil)
+        ? ` · In hiding until age ${this.s.unionHiddenUntil.toFixed(1)}`
+        : "";
+      this.ui.status.union.innerHTML =
+        (this.s.outlander
+          ? `<b>Union:</b> ${this.s.unionMembers} members · Caches:${this.s.unionCaches}${hideTxt} ${revoltAvail?'· Revolt READY':''}`
+          : `<b>Union:</b> (join Outlanders to unlock)`);
+
+      // Button visibility / enabled states
+      this.ui.btnOut.style.display = (!this.s.proven && !this.s.outlander && this.s.alive) ? "" : "none";
+      this.ui.btnUnion.style.display = (this.s.outlander && this.s.alive && this.s.unionMembers===0) ? "" : "none";
+
+      const unionOpsVisible = (this.s.outlander && this.s.alive && this.s.unionMembers>0);
+      this.ui.btnExpand.style.display = unionOpsVisible ? "" : "none";
+      this.ui.btnCache.style.display  = unionOpsVisible ? "" : "none";
+      this.ui.btnSabot.style.display  = unionOpsVisible ? "" : "none";
+      this.ui.btnRevolt.style.display = (unionOpsVisible && this.s.unionMembers >= (this.p.revoltUnlockAt||1000)) ? "" : "none";
+
+      // Hide deploy if Outlander
+      this.ui.btnDeploy.disabled = !!this.s.outlander || !this.s.alive;
+      // general buttons
+      this.ui.btnRepro.disabled = !this.s.alive;
+      this.ui.btnWait.disabled  = !this.s.alive;
+      this.ui.btnHusb.disabled  = !this.s.alive;
+      this.ui.btnReset.disabled = false;
+    },
+
+    // ---------- Reset ----------
+    reset(){ this._initLife(); this._renderStatus(); this._newCycle(); }
   };
 
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>window.AzulianLifeSim.mount("azulian-life-sim"));
-  else window.AzulianLifeSim.mount("azulian-life-sim");
-})();
-// ---------------------------------------------------------
-// Azulian Population Simulator — independent module
-// ---------------------------------------------------------
-(function(){
-  const AzulianSim = {
-    // ---------------- Parameters ----------------
+  // expose and boot
+  window.AzulianLifeSim = Life;
+  function bootLife(){ if(document.getElementById("azulian-life-sim")) Life.mount("azulian-life-sim"); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bootLife); else bootLife();
+
+  // ========================================================================
+  // POPULATION SIM (unchanged core, tidy UI)
+  // ========================================================================
+  const Pop = {
     params:{
-      a0:0.22,         // rookie survival (rookie -> proven per cycle)
-      ap:0.85,         // proven survival (stays proven next cycle)
-      lambda:3,        // mean litter size (per pregnancy)
-      j:0.7,           // juvenile survival to adulthood
-      Y:2,             // years ashore per cycle per proven
-      pi:0.4,          // redeploy fraction (proven not ashore)
-      k:3,             // polyandry level (mating skew -> Ne)
-      clanPrestige:0,  // 0..1 boosts ap as (1+0.2*prestige)
-      Nf0:1e6,         // initial rookies (females) at cycle 0
-      Nm:3e6,          // available adult males
-      cycles:10        // number of cycles to simulate
+      a0:0.22, ap:0.85, lambda:3, j:0.7, Y:2, pi:0.4, k:3,
+      clanPrestige:0.0, Nf0:1e6, Nm:3e6, cycles:10
     },
-
-    // ---------------- Core simulation ----------------
-    /**
-     * Deterministic cycle step (stylized mean-field model).
-     * state.R = rookies (unproven females entering the pipeline)
-     * state.P = proven females (veterans)
-     */
     step(state,p){
-      const a0 = (+p.a0 ?? 0.22);
-      const ap = (+p.ap ?? 0.85);
-      const λ  = (+p.lambda ?? 3);
-      const j  = (+p.j ?? 0.7);
-      const Y  = (+p.Y ?? 2);
-      const π  = (+p.pi ?? 0.4);
-      const k  = Math.max(1,(+p.k ?? 3));
-      const prestige = (+p.clanPrestige ?? 0);
-      const Nm = (+p.Nm ?? 1e6);
-
-      // prestige improves proven survival a bit
-      const apEff = ap * (1 + 0.2 * prestige);
-
-      // proven pipeline
-      const newProven   = (state.R || 0) * a0;   // rookies that become proven
-      const provenStay  = (state.P || 0) * apEff;
-
-      // reproduction happens on-shore
-      const shoreProven = (state.P || 0) * (1 - π);
-
-      // birthsPerFemale: 2 pregnancies / year * λ pups/pregnancy * j survival * Y years
-      const birthsPerFemale = 2 * λ * j * Y;
-
-      // daughters arise from ~50:50 sex ratio
-      const daughters = shoreProven * birthsPerFemale * 0.5;
-
-      // next rookies are the daughters
+      const a0=+p.a0??0.22, ap=+p.ap??0.85, λ=+p.lambda??3, j=+p.j??0.7,
+            Y=+p.Y??2, π=+p.pi??0.4, k=Math.max(1,+p.k??3),
+            prestige=+p.clanPrestige??0, Nm=+p.Nm??1e6;
+      const apEff = ap*(1+0.2*prestige);
+      const newProven  = (state.R||0)*a0;
+      const provenNext = (state.P||0)*apEff;
+      const shoreProven= (state.P||0)*(1-π);
+      const birthsPerFemale = 2*λ*j*Y;
+      const daughters = shoreProven*birthsPerFemale*0.5;
       const nextR = daughters;
-
-      // effective population size Ne (very stylized)
-      // mating skew via k (polyandry reduces variance); harmonic mean approximation
-      const Ne = (4 * (shoreProven * Nm) / Math.max(1,(shoreProven + Nm))) * (1 - 1/Math.max(1,k));
-
-      return { R: nextR, P: newProven + provenStay, daughters, Ne };
+      const Ne = (4*(shoreProven*Nm)/Math.max(1,(shoreProven+Nm))) * (1-1/Math.max(1,k));
+      return {R:nextR,P:newProven+provenNext,daughters,Ne};
     },
-
     run(){
-      const p = this.params;
-      let s = { R: +p.Nf0 || 0, P: 0 };
-      const out = [];
-      for (let t = 0; t < (+p.cycles || 0); t++){
-        s = this.step(s, p);
-        out.push({
-          cycle: t+1,
-          rookies: s.R,
-          proven:  s.P,
-          daughters: s.daughters,
-          Ne: s.Ne
-        });
-      }
+      const p=this.params; let s={R:+p.Nf0||0,P:0}; const out=[];
+      for(let t=0;t<(+p.cycles||0);t++){ s=this.step(s,p); out.push({cycle:t+1,rookies:s.R,proven:s.P,daughters:s.daughters,Ne:s.Ne}); }
       return out;
     },
-
-    // ---------------- Rendering ----------------
     renderTable(data){
-      let h = `<table style="width:100%;border-collapse:collapse;text-align:center;">
-        <tr><th>Cycle</th><th>Rookies</th><th>Proven</th><th>Daughters</th><th>Effective Pop (Ne)</th></tr>`;
-      const exp = v => (Number.isFinite(v) ? v : 0).toExponential(2);
-      for(const r of data){
-        h += `<tr>
-          <td>${r.cycle}</td>
-          <td>${exp(r.rookies)}</td>
-          <td>${exp(r.proven)}</td>
-          <td>${exp(r.daughters)}</td>
-          <td>${exp(r.Ne)}</td>
-        </tr>`;
-      }
-      h += `</table>`;
-      return h;
+      let h=`<table style="width:100%;border-collapse:collapse;text-align:center;"><tr><th>Cycle</th><th>Rookies</th><th>Proven</th><th>Daughters</th><th>Effective Pop (Ne)</th></tr>`;
+      const ex=v=>(Number.isFinite(v)?v:0).toExponential(2);
+      for(const r of data){ h+=`<tr><td>${r.cycle}</td><td>${ex(r.rookies)}</td><td>${ex(r.proven)}</td><td>${ex(r.daughters)}</td><td>${ex(r.Ne)}</td></tr>`; }
+      return h+"</table>";
     },
-
     renderControls(){
-      const sliders = [
-        {id:'a0',label:'Rookie Survival (a₀)',min:0.10,max:0.60,step:0.01},
-        {id:'ap',label:'Proven Survival (aₚ)',min:0.60,max:0.99,step:0.01},
+      const sliders=[
+        {id:'a0',label:'Rookie Survival (a₀)',min:0.1,max:0.5,step:0.01},
+        {id:'ap',label:'Proven Survival (aₚ)',min:0.6,max:0.99,step:0.01},
         {id:'lambda',label:'Litter Size (λ)',min:1,max:6,step:0.1},
-        {id:'j',label:'Juvenile Survival (j)',min:0.40,max:0.95,step:0.01},
+        {id:'j',label:'Juvenile Survival (j)',min:0.4,max:0.9,step:0.01},
         {id:'Y',label:'Years Ashore (Y)',min:0.5,max:4,step:0.1},
         {id:'pi',label:'Redeploy Fraction (π)',min:0,max:0.9,step:0.05},
-        {id:'k',label:'Polyandry Level (k)',min:1,max:12,step:1},
-        {id:'clanPrestige',label:'Clan Prestige',min:0,max:1,step:0.05},
-        {id:'Nf0',label:'Initial Rookies (Nf₀)',min:1e3,max:1e9,step:1e3},
-        {id:'Nm',label:'Adult Males (Nm)',min:1e3,max:1e9,step:1e3},
-        {id:'cycles',label:'Cycles',min:1,max:100,step:1}
+        {id:'k',label:'Polyandry Level (k)',min:1,max:6,step:1},
+        {id:'clanPrestige',label:'Clan Prestige',min:0,max:1,step:0.05}
       ];
-      let h = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+      let h=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">`;
       for(const s of sliders){
-        const val = this.params[s.id];
-        h += `<label style="display:flex;gap:6px;align-items:center;">
-                <span style="min-width:170px;text-align:right;">${s.label}</span>
-                <input type="range" id="pop-${s.id}" min="${s.min}" max="${s.max}" step="${s.step}"
-                       value="${val}" oninput="AzulianSim.update('${s.id}',this.value)" style="flex:1;">
-                <span id="pop-${s.id}-val" style="width:110px;text-align:left;">${val}</span>
-              </label>`;
+        const v=this.params[s.id];
+        h+=`<label>${s.label}: <input type="range" id="${s.id}" min="${s.min}" max="${s.max}" step="${s.step}" value="${v}" oninput="AzulianSim.update('${s.id}',this.value)"><span id="${s.id}-val">${v}</span></label>`;
       }
-      h += `</div>
-            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-              <button onclick="AzulianSim.refresh()">Run Simulation</button>
-              <button onclick="AzulianSim.resetDefaults()">Reset Defaults</button>
-            </div>`;
-      return h;
+      return h+`</div><button onclick="AzulianSim.refresh()">Run Simulation</button>`;
     },
-
-    update(id,val){
-      const num = parseFloat(val);
-      // allow very large integers for Nf0/Nm without scientific drift in label
-      if (id === 'Nf0' || id === 'Nm' || id === 'cycles'){
-        this.params[id] = +val;
-      } else {
-        this.params[id] = Number.isFinite(num) ? num : this.params[id];
-      }
-      const e = document.getElementById(`pop-${id}-val`);
-      if(e) e.textContent = val;
-    },
-
-    resetDefaults(){
-      this.params = {
-        a0:0.22, ap:0.85, lambda:3, j:0.7, Y:2, pi:0.4, k:3,
-        clanPrestige:0, Nf0:1e6, Nm:3e6, cycles:10
-      };
-      this.mount(this._lastContainerId || "azulian-sim");
-    },
-
-    refresh(){
-      const c = document.getElementById("azulian-sim-output");
-      if(!c) return;
-      const d = this.run();
-      c.innerHTML = this.renderTable(d);
-    },
-
-    // ---------------- Mount ----------------
+    update(id,val){ this.params[id]=parseFloat(val); const e=document.getElementById(`${id}-val`); if(e) e.textContent=val; },
+    refresh(){ const c=document.getElementById("azulian-sim-output"); if(!c) return; c.innerHTML=this.renderTable(this.run()); },
     mount(containerId="azulian-sim"){
-      this._lastContainerId = containerId;
-      const root = document.getElementById(containerId);
-      if(!root){ console.warn("[AzulianSim] container not found"); return; }
-      root.innerHTML = `<h3>Azulian Population Simulator</h3>
-        ${this.renderControls()}
-        <div id="azulian-sim-output" style="margin-top:8px;">
-          ${this.renderTable(this.run())}
-        </div>`;
+      const root=document.getElementById(containerId); if(!root) return;
+      root.innerHTML=`<h3>Azulian Population Simulator</h3>${this.renderControls()}<div id="azulian-sim-output" style="margin-top:8px;">${this.renderTable(this.run())}</div>`;
     }
   };
+  window.AzulianSim=Pop;
+  function bootPop(){ if(document.getElementById("azulian-sim")) Pop.mount("azulian-sim"); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bootPop); else bootPop();
 
-  // expose globally for slider callbacks
-  window.AzulianSim = AzulianSim;
-  // ---------------- Bootstrap ----------------
-  function bootPop(){
-    const id = "azulian-sim";
-    if (document.getElementById(id)) window.AzulianSim.mount(id);
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootPop);
-  else bootPop();
-
-})(); // end AzulianSim IIFE
+})();
