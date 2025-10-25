@@ -2,7 +2,7 @@
    Outlanders + Union (civilian)  AND  Infamy + Rat Hunters + Anti-Degeneracy League (deployed)
    Carrd / GitHub Pages compatible, pure JS, UTF-8.
    Exposes: window.AzulianLifeSim, window.AzulianSim
-   Version: 2025-10-24
+   Version: 2025-10-24 (v5, Gala state-machine fix)
 */
 (function(){
 
@@ -87,25 +87,28 @@ const Life = {
     safariOutlanderDeath:0.10, // 10% killed by outlanders on safari
     safariHookerDeath:0.05,    // 5% eviscerated by cybernetic hooker
     bloodAnnihilateChance:0.10,// 10% per 6mo annihilation while flagged
-    ratHunterAggroBonus:0.10,  // +10% weight to "killed by rat hunters" etc
-    leagueConvertPass:0.90,    // same as union
-    leagueConvertDeath:0.10,   // same as union
-    leagueExpandDeath:0.10,    // leader risk
-    leagueHideDeathRisk:0.20,  // 20% player death during hide skip
-    leagueStealthFail:0.10,    // 10% fail per 6mo
-    leagueCacheSave:10,        // preserved per hideout
+    ratHunterAggroBonus:0.10,  // +10% weight to "killed by rat hunters" (player)
+    husbandByRatsBase:0.00,    // base chance per 6mo before aggro (0)
+    husbandByRatsAggro:0.05,   // 5% per 6mo if aggro and have husbands
+
+    leagueConvertPass:0.90,
+    leagueConvertDeath:0.10,
+    leagueExpandDeath:0.10,
+    leagueHideDeathRisk:0.20,
+    leagueStealthFail:0.10,
+    leagueCacheSave:10,
     leagueHideYears:4,
     leaguePurgeUnlockAt:1000,
-    leaguePurgeSuccess:0.50,   // 50% success
-    huntHunterDeath:0.05,      // 5% killed by rat hunters
-    huntHookerRecruit:0.05,    // 5% recruit cybernetic hooker (once)
+    leaguePurgeSuccess:0.50,
+    huntHunterDeath:0.05,
+    huntHookerRecruit:0.05,    // only once
     duelMaxWin:0.95            // clamp duel success
   },
 
   // ---------- Global & State ----------
   s:{}, cycleCount:0, ui:{}, currentCycleBody:null,
   global:{
-    advantageStacks:0, // each successful Revolt or League Purge increments
+    advantageStacks:0 // each successful Revolt or League Purge increments
   },
 
   // ========================================================================
@@ -238,15 +241,18 @@ const Life = {
 
       // Deployed path: Infamy, Duel, Gala → Rat Hunters OR League
       infamy:0, duelWins:0,
-      galaState:null, // null | 'intro' | 'ignore' | 'investigate'
+      galaState:null,             // null | 'intro' | 'ignore'
+      galaOutcome:null,           // null | 'investigate_you' | 'investigate_them' | 'ignore_join' | 'ignore_decline'
       joinedRatHunters:false, ratSafariCount:0, bloodSports:false, annihilationActive:false,
-      ratHunterAggro:false, // sets +10% weights on rat-hunter deaths
-      safariUnlockedHusbandRisks:false, // unlock stabbed-by-husbands + strangled-husband
-      husbandsStrangledChance:0.05, // chance per 6mo to log husband strangled (if safari>=1)
+      ratHunterAggro:false,
+      safariUnlockedHusbandRisks:false, // unlock stabbed-by-husbands etc after any safari
+      husbandsStrangledChance:0.05,     // ambient post-safari
+
+      husbandKilledByRats:false,  // explicit event gate
 
       // League (Anti-Degeneracy) — mirrors union
-      leagueMembers:0, leagueCaches:0, leagueHiddenUntil:null,
-      lastLeagueStealthTickAge:16, leagueActive:false, cyberHooker:false
+      leagueActive:false, leagueMembers:0, leagueCaches:0,
+      leagueHiddenUntil:null, lastLeagueStealthTickAge:16, cyberHooker:false
     };
   },
 
@@ -272,23 +278,21 @@ const Life = {
     const stacks=this.global.advantageStacks|0;
     if(stacks<=0) return p;
     const adv=(this.p.outlanderAdvantage||0.5);
-    // multiplicative stacking: each stack multiplies by (1 - adv)
     for(let i=0;i<stacks;i++) p=p*(1-adv);
     return p;
   },
 
   _advantagePersonal(p){
-    // personal Outlander status halves risk on top of global stacks
     if(this.s.outlander) p=p*(1-(this.p.outlanderAdvantage||0.5));
     return p;
   },
 
   _infamyReduce(p){
-    // infamy reduces "overall death probability" by equal percentage (max 100)
     const f=clamp(this.s.infamy||0,0,100)/100;
     return p*(1-f);
   },
 
+  // Check husband fates (old age, jealousy, special events)
   _checkHusbands(){
     const alive=[];
     for(const hAge of(this.s.husbandAges||[])){
@@ -307,11 +311,21 @@ const Life = {
       }
     }
 
-    // post-safari ambient husband death (strangled by player) — only if safari≥1
+    // ambient post-safari: husband strangled by player (only if any husbands)
     if(this.s.husbands>0 && this.s.safariUnlockedHusbandRisks){
       if(Math.random()<(this.s.husbandsStrangledChance||0.05)){
         this.s.husbands-=1;this.s.husbandAges.pop();
         this._addLog("husbandDeath","A husband was strangled to death by the player during a blackout rage.");
+      }
+    }
+
+    // ambient rat-hunter retaliation against husbands (after gala aggro)
+    if(this.s.husbands>0 && this.s.ratHunterAggro){
+      const ch = (this.p.husbandByRatsAggro || 0.05); // 5% per 6mo
+      if(Math.random()<ch){
+        this.s.husbands-=1; this.s.husbandAges.pop();
+        this.s.husbandKilledByRats = true;
+        this._addLog("husbandDeath","A husband was dragged into an alley and butchered by Rat Hunters.");
       }
     }
   },
@@ -368,7 +382,6 @@ const Life = {
     }
 
     // ----- Weighted death pools -----
-    // Base causes
     const basePool = [
       ["deathAccident","Died in workplace accident",0.15],
       ["deathStarve","Starved to death",0.15],
@@ -376,16 +389,16 @@ const Life = {
     ];
 
     // Husband-specific causes (guarded by husbands>0)
+    const inf = clamp(this.s.infamy||0,0,100)/100;
     const husbandPool = (this.s.husbands>0) ? [
-      ["deathPoison","Poisoned by jealous husband",0.10],
-      // new: stabbed by husbands (unlocked after safari)
-      ...(this.s.safariUnlockedHusbandRisks ? [["deathRival","Stabbed to death by husbands",0.08]] : [])
+      ["deathPoison","Poisoned by jealous husband",0.10*(1+inf)],
+      ...(this.s.safariUnlockedHusbandRisks ? [["deathRival","Stabbed to death by husbands",0.08*(1+inf)]] : [])
     ] : [];
 
-    // Civilian-only extra (if never deployed)
+    // Civilian-only extra
     const civilianExtra = (!this.s.proven && this.s.deployments===0) ? [
       ["deathRival","Killed by rival wicker gang",0.12],
-      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)], // aggro bonus
+      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)],
       ["deathRival","Killed in worker uprising",0.10],
       ["deathAccident","Died of infection",0.10],
       ["deathPoison","Executed by Yebra for illegal farming",0.10],
@@ -396,9 +409,9 @@ const Life = {
 
     // Veteran extras (after first deployment)
     const veteranExtra = (this.s.proven||this.s.deployments>0) ? [
-      ["deathRival","Killed in a duel",0.12], // duel death may also occur via Start Duel action
+      ["deathRival","Killed in a duel",0.12],
       ["deathRival","Killed by outlanders while rat hunting",0.10],
-      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)], // aggro bonus
+      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)],
       ["deathPoison","Killed by angry prostitute while slumming",0.10],
       ["deathAccident","Overdosed",0.10],
       ["deathPoison","Executed for space piracy",0.10],
@@ -406,12 +419,9 @@ const Life = {
       ["deathRival","Killed in a drunken brawl",0.10]
     ] : [];
 
-    // old age (>=80)
     const oldAge = (this.s.age>=80) ? [["deathOld","Died of old age",0.25]] : [];
 
-    // Infamy modifies husband-related weights upward
-    const inf = clamp(this.s.infamy||0,0,100)/100;
-    const pool = [...basePool, ...husbandPool.map(([t,m,w])=>[t,m,w*(1+inf)]), ...civilianExtra, ...veteranExtra, ...oldAge];
+    const pool = [...basePool, ...husbandPool, ...civilianExtra, ...veteranExtra, ...oldAge];
 
     // pick weighted cause
     const totalW=pool.reduce((a,[,,w])=>a+w,0);
@@ -438,7 +448,8 @@ const Life = {
       this.s.unionMembers=after;
       this._addLog("union",`Union purge by Yebra. Members ${before} → ${after}.`);
       this._addLog("union",`Union forced into hiding for ${(this.p.unionHideYears||4)} years.`);
-      // instant 4-year skip + 20% death risk
+
+      // instant 4-year skip with 20% chance to trigger civilian death pool once
       this.s.age += (this.p.unionHideYears||4);
       if(Math.random()<0.20){
         this._applyCivilianMortality();
@@ -482,7 +493,8 @@ const Life = {
       this.s.leagueMembers=after;
       this._addLog("league",`League members purged by Rat Hunters. Members ${before} → ${after}.`);
       this._addLog("league",`League forced into hiding for ${(this.p.leagueHideYears||4)} years.`);
-      // instant 4-year skip + 20% death risk (league flavor)
+
+      // instant 4-year skip with league-flavor risk
       this.s.age += (this.p.leagueHideYears||4);
       if(Math.random()<(this.p.leagueHideDeathRisk||0.20)){
         this._die("deathRival","Torn apart during a Rat Hunter ambush while in hiding");
@@ -501,8 +513,10 @@ const Life = {
     const members = this.s.leagueMembers;
     for(let i=0;i<members;i++){
       const r = Math.random();
-      if(r < (this.p.leagueConvertDeath||this.p.leagueConvertDeath===0?this.p.leagueConvertDeath:0.10)) deaths++;
-      else if(r < (this.p.leagueConvertDeath??0.10)+(this.p.leagueConvertPass??0.90)) gained++;
+      const d = (this.p.leagueConvertDeath??0.10);
+      const p = (this.p.leagueConvertPass??0.90);
+      if(r < d) deaths++;
+      else if(r < d+p) gained++;
     }
     this.s.leagueMembers = Math.max(0, this.s.leagueMembers - deaths + gained);
     if(deaths>0 || gained>0){
@@ -535,7 +549,6 @@ const Life = {
   addHusband(){
     if(!this.s.alive) return;
 
-    // courting is risky if unproven
     if(!this.s.proven){
       this._advanceHalfYear();
       const rejected=Math.random()<0.95;
@@ -546,7 +559,6 @@ const Life = {
         return;
       }
     }else{
-      // even if proven, take 6 months to arrange marriage
       this._advanceHalfYear();
     }
 
@@ -594,7 +606,7 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age>=this.s.unionHiddenUntil){
       this.s.unionHiddenUntil=null;
       this._addLog("union","Union resurfaced from hiding.");
-      if(Math.random()<0.20) this._applyCivilianMortality(); // resurfacing risk (civilian)
+      if(Math.random()<0.20) this._applyCivilianMortality();
     }
     if(this.s.leagueHiddenUntil && this.s.age>=this.s.leagueHiddenUntil){
       this.s.leagueHiddenUntil=null;
@@ -609,7 +621,6 @@ const Life = {
   deploy(){
     if(!this.s.alive) return;
 
-    // Outlanders cannot deploy — summary execution
     if(this.s.outlander){
       this._die("deathPoison","Executed by Yebra for terroristic affiliations when attempting to deploy");
       return;
@@ -625,7 +636,6 @@ const Life = {
 
     if(survived){
       if(first) this.s.proven=true;
-      // Infamy increases with successful deployments
       this.s.infamy = clamp((this.s.infamy||0)+(this.p.infamyPerDeploy||5),0,100);
       this._addLog("deploy",`Deployment ${this.s.deployments} survived. Mortality ${(m*100).toFixed(1)}%. Age→${this.s.age} · Infamy ${this.s.infamy}`);
       this._renderStatus();
@@ -635,7 +645,7 @@ const Life = {
     }
   },
 
-  // ----- Outlander path (civilian) -----
+  // ----- Outlander path -----
   joinOutlanders(){
     if(!this.s.alive) return;
     if(this.s.proven){ this._addLog("outlander","Cannot join Outlanders after deploying."); return; }
@@ -661,7 +671,6 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
       this._addLog("union","Union is in hiding; cannot expand."); return;
     }
-    // Outlander action = 6 months
     this._advanceHalfYear();
 
     if(Math.random()<(this.p.unionExpandDeath||0.10)){
@@ -682,7 +691,6 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
       this._addLog("union","Union is in hiding; cannot build caches."); return;
     }
-    // Outlander action = 6 months
     this._advanceHalfYear();
 
     if(Math.random()<(this.p.unionCacheDeath||0.10)){
@@ -698,7 +706,6 @@ const Life = {
     if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
       this._addLog("sabotage","Union is in hiding; cannot sabotage."); return;
     }
-    // Outlander action = 6 months
     this._advanceHalfYear();
 
     const bonus=Math.floor((this.s.unionMembers||0)/10)*0.01;
@@ -736,11 +743,10 @@ const Life = {
     }
     this._renderStatus();
   },
+
   // ========================================================================
   // DEPLOYED PATH — INFAMY / DUEL / GALA / RAT HUNTERS / LEAGUE
   // ========================================================================
-
-  // HUD helper
   _duelWinChance(){
     const base=(this.p.duelBaseWin||0.50);
     const perDep=(this.p.duelPerDeploy||0.10)*(this.s.deployments||0);
@@ -766,72 +772,86 @@ const Life = {
     this._renderStatus();
   },
 
+  // -------- Gala flow (FIXED STATE MACHINE) --------
   attendGala(){
     if(!this.s.alive) return;
     if(!this.s.proven && this.s.deployments===0){ this._addLog("gala","You must survive one deployment before being invited to elite galas."); return; }
+
     this.s.galaState='intro';
-    this._addLog("gala","You notice that some of the male attendees do not look happy about being here.");
-    // show choice buttons
+    this.s.galaOutcome=null;
+    this._addLog("gala","You notice that some of the male attendees do not look happy about being there.");
+    // explicit: show Ignore & Investigate until a choice is made
     this.ui.btnGalaIgnore.style.display="";
     this.ui.btnGalaInv.style.display="";
+    // hide downstream options until chosen
+    this.ui.btnJoinRat.style.display="none";
+    this.ui.btnDecline.style.display="none";
     this._renderStatus();
   },
+
   galaIgnore(){
     if(this.s.galaState!=='intro') return;
     this._advanceHalfYear();
+    this.s.galaState='ignore';
     this._addLog("gala","A rat hunter approaches you and asks if you're interested in a safari.");
-    // show Join/Decline
+    // now show Join/Decline pair
     this.ui.btnJoinRat.style.display="";
     this.ui.btnDecline.style.display="";
     this.ui.btnGalaIgnore.style.display="none";
     this.ui.btnGalaInv.style.display="none";
-    this.s.galaState='ignore';
+    this._renderStatus();
   },
+
   galaDecline(){
     if(this.s.galaState!=='ignore') return;
     this._advanceHalfYear();
+    this.s.galaState=null;
+    this.s.galaOutcome='ignore_decline';
     this._addLog("gala","You decline politely and leave the gala with a strange aftertaste.");
     this.ui.btnJoinRat.style.display="none";
     this.ui.btnDecline.style.display="none";
-    this.s.galaState=null;
     this._renderStatus();
   },
+
   galaInvestigate(){
     if(this.s.galaState!=='intro') return;
     this._advanceHalfYear();
     this._addLog("gala","You discovered a trafficking ring behind the smiles.");
-    // make a scene or leave
-    const scene=Math.random()<0.5;
-    if(scene){
-      this._addLog("gala","You made a scene: majority of attendees side with you; rat hunters flee.");
-      // raise aggro weights for rat hunter related deaths +10%
-      this.s.ratHunterAggro=true;
-      // unlock league formation
-      this.ui.btnFormLeague.style.display="";
-    }else{
-      this._addLog("gala","You made a scene: majority of attendees side with rat hunters; you're expelled from the gala.");
-      this.s.ratHunterAggro=true;
-    }
-    // either outcome: both “killed by rat hunters” and “husband killed by rat hunters” become more likely
-    // (we model as flag ratHunterAggro which weights those deaths in pools)
 
-    // hide gala ephemeral
+    const crowdSidesWithYou = Math.random()<0.5;
+    if(crowdSidesWithYou){
+      this.s.galaOutcome='investigate_you';
+      this._addLog("gala","You make a scene: the majority of attendees side with you; the Rat Hunters flee into the night.");
+    }else{
+      this.s.galaOutcome='investigate_them';
+      this._addLog("gala","You make a scene: the majority side with the Rat Hunters; you are expelled from the gala.");
+    }
+
+    // Either way, the Rat Hunters are now hostile; future weights increase.
+    this.s.ratHunterAggro = true;
+
+    // hide the intro choices after resolution
+    this.s.galaState=null;
     this.ui.btnGalaIgnore.style.display="none";
     this.ui.btnGalaInv.style.display="none";
-    this.s.galaState=null;
+
+    // League can be formed AFTER this outcome (or later if a husband is killed by Rat Hunters)
+    // (Button visibility is handled in _renderStatus via outcome/flags)
     this._renderStatus();
   },
 
   joinRatHunters(){
-    if(this.s.joinedRatHunters) return;
+    if(this.s.galaState!=='ignore') return; // only from ignore branch
     this._advanceHalfYear();
     this.s.joinedRatHunters=true;
+    this.s.galaOutcome='ignore_join';
+    this.s.galaState=null;
+
     this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamyJoinRat||30),0,100);
     this._addLog("rat",`Joined Rat Hunters. Infamy +${this.p.infamyJoinRat||30} → ${this.s.infamy}.`);
     this._addLog("rat","Their expeditions are crimes in everything but name; husbands grow cold at the stories you do not tell.");
-    // new ambient button
+
     this.ui.btnSafari.style.display="";
-    // close gala choices
     this.ui.btnJoinRat.style.display="none";
     this.ui.btnDecline.style.display="none";
     this._renderStatus();
@@ -839,10 +859,9 @@ const Life = {
 
   attendSafari(){
     if(!this.s.joinedRatHunters) return;
-    // 6 months pass: the safari itself
     this._advanceHalfYear();
 
-    // rare death first: eviscerated by cybernetic hooker (5%)
+    // rare death first: cybernetic hooker
     if(Math.random() < (this.p.safariHookerDeath||0.05)){
       this._die("deathRival","Eviscerated by a cybernetic hooker in a chrome-lit pit.");
       return;
@@ -854,13 +873,12 @@ const Life = {
       return;
     }
 
-    // success: +5 infamy, unlock risks
+    // success
     this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamySafariSuccess||5),0,100);
     this.s.ratSafariCount=(this.s.ratSafariCount||0)+1;
     if(this.s.ratSafariCount>=1) this.s.safariUnlockedHusbandRisks=true;
     this._addLog("rat",`Safari concluded. War crimes photographed for private albums. Infamy +${this.p.infamySafariSuccess||5} → ${this.s.infamy}.`);
 
-    // after 3 safaris, unlock blood sports
     if(this.s.ratSafariCount>=3){
       this.ui.btnBlood.style.display="";
       this._addLog("blood","Blood Sports now available. You know too much to be clean again.");
@@ -871,7 +889,6 @@ const Life = {
   attendBloodSports(){
     if(!this.s.joinedRatHunters) return;
     if(this.s.ratSafariCount<3) return;
-    // immediate infamy bump
     this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamyBloodSports||50),0,100);
     this.s.bloodSports=true;
     this.s.annihilationActive=true;
@@ -880,9 +897,17 @@ const Life = {
     this._renderStatus();
   },
 
-  // ----- League (Anti-Degeneracy) from Investigate path -----
+  // ----- League (Anti-Degeneracy) -----
   formLeague(){
+    // Require a triggering outcome: either investigate branch resolved, or a husband was killed by Rat Hunters
     if(this.s.leagueActive) return;
+    const canForm = (
+      this.s.galaOutcome==='investigate_you' ||
+      this.s.galaOutcome==='investigate_them' ||
+      this.s.husbandKilledByRats===true
+    );
+    if(!canForm){ this._addLog("league","The moment is not ripe; expose them or mourn first."); return; }
+
     this._advanceHalfYear();
     this.s.leagueActive=true;
     this.s.leagueMembers=1;
@@ -929,25 +954,21 @@ const Life = {
     }
     this._advanceHalfYear();
 
-    // death check (5%)
     if(Math.random()<(this.p.huntHunterDeath||0.05)){
       this._die("deathRival","Gutted by Rat Hunters in a smoke-choked stairwell");
       return;
     }
 
-    // hooker recruit (5%) — only once
     if(!this.s.cyberHooker && Math.random()<(this.p.huntHookerRecruit||0.05)){
       this.s.cyberHooker=true;
       this._addLog("hooker","Recruited a cybernetic hooker. She knows where the bones are buried.");
     }
 
-    // success: if hooker recruited → auto success flavor, else ordinary success
     if(this.s.cyberHooker){
       this._addLog("league","Hunt succeeded with surgical precision. No witnesses, only rumors.");
     }else{
       this._addLog("league","Hunt succeeded. Their fear tastes like tin.");
     }
-    // reward: +5 infamy
     this.s.infamy=clamp((this.s.infamy||0)+5,0,100);
     this._renderStatus();
   },
@@ -967,6 +988,7 @@ const Life = {
     }
     this._renderStatus();
   },
+
   // ========================================================================
   // DEATH + HUD + RESET
   // ========================================================================
@@ -1026,15 +1048,16 @@ const Life = {
         ? `<b>League:</b> ${this.s.leagueMembers} members · Hideouts:${this.s.leagueCaches}${hideTxtL} ${purgeAvail?'· Purge READY':''}`
         : `<b>League:</b> (investigate at gala to unlock)`);
 
-    // button visibility
+    // ---- Button visibility logic (includes GALA FIX) ----
+
     // core
     this.ui.btnDeploy.disabled = !!this.s.outlander || !this.s.alive;
-    this.ui.btnRepro.disabled = !this.s.alive;
-    this.ui.btnWait .disabled = !this.s.alive;
-    this.ui.btnHusb .disabled = !this.s.alive;
-    this.ui.btnReset.disabled = false;
+    this.ui.btnRepro.disabled  = !this.s.alive;
+    this.ui.btnWait .disabled  = !this.s.alive;
+    this.ui.btnHusb .disabled  = !this.s.alive;
+    this.ui.btnReset.disabled  = false;
 
-    // outlander join shows only when unproven + alive
+    // Outlander
     this.ui.btnOut.style.display    = (!this.s.proven && !this.s.outlander && this.s.alive) ? "" : "none";
     this.ui.btnUnion.style.display  = (this.s.outlander && this.s.alive && this.s.unionMembers===0) ? "" : "none";
 
@@ -1044,23 +1067,44 @@ const Life = {
     this.ui.btnSabot .style.display = unionOpsVisible ? "" : "none";
     this.ui.btnRevolt.style.display = (unionOpsVisible && revoltAvail) ? "" : "none";
 
-    // deployed path buttons
+    // deployed base controls
     const deployed = (this.s.proven || this.s.deployments>0) && this.s.alive && !this.s.outlander;
-    this.ui.btnDuel.style.display   = deployed ? "" : "none";
-    this.ui.btnGala.style.display   = deployed ? "" : "none";
-    this.ui.btnGalaIgnore.style.display="none";
-    this.ui.btnGalaInv.style.display="none";
-    this.ui.btnJoinRat.style.display="none";
-    this.ui.btnDecline.style.display="none";
+    this.ui.btnDuel.style.display = deployed ? "" : "none";
+    this.ui.btnGala.style.display = deployed ? "" : "none";
 
-    // rat hunter buttons
+    // GALA FIX: keep ephemeral buttons visible strictly based on current galaState
+    if(this.s.galaState === 'intro'){
+      this.ui.btnGalaIgnore.style.display = "";
+      this.ui.btnGalaInv.style.display    = "";
+      this.ui.btnJoinRat.style.display    = "none";
+      this.ui.btnDecline.style.display    = "none";
+    }else if(this.s.galaState === 'ignore'){
+      this.ui.btnGalaIgnore.style.display = "none";
+      this.ui.btnGalaInv.style.display    = "none";
+      this.ui.btnJoinRat.style.display    = "";
+      this.ui.btnDecline.style.display    = "";
+    }else{
+      this.ui.btnGalaIgnore.style.display = "none";
+      this.ui.btnGalaInv.style.display    = "none";
+      this.ui.btnJoinRat.style.display    = "none";
+      this.ui.btnDecline.style.display    = "none";
+    }
+
+    // Rat hunter branch
     const ratVisible = deployed && this.s.joinedRatHunters;
     this.ui.btnSafari.style.display = ratVisible ? "" : "none";
     this.ui.btnBlood.style.display  = (ratVisible && this.s.ratSafariCount>=3) ? "" : "none";
 
-    // league buttons
+    // League visibility:
+    // Only after a valid trigger: investigate resolved OR a husband was killed by Rat Hunters
+    const canShowFormLeague = deployed && !this.s.leagueActive && (
+      this.s.galaOutcome==='investigate_you' ||
+      this.s.galaOutcome==='investigate_them' ||
+      this.s.husbandKilledByRats===true
+    );
+    this.ui.btnFormLeague.style.display   = canShowFormLeague ? "" : "none";
+
     const leagueOps = deployed && this.s.leagueActive;
-    this.ui.btnFormLeague.style.display = (deployed && !this.s.leagueActive) ? "" : "none";
     this.ui.btnLeagueExpand.style.display = leagueOps ? "" : "none";
     this.ui.btnLeagueCache .style.display = leagueOps ? "" : "none";
     this.ui.btnHuntHunter  .style.display = leagueOps ? "" : "none";
@@ -1082,7 +1126,6 @@ function bootLife(){
 }
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bootLife);
 else bootLife();
-
 // ============================================================================
 // POPULATION SIMULATOR (unchanged core math, tidy UI)
 // ============================================================================
