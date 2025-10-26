@@ -928,9 +928,9 @@ refresh(){
   this.renderChart(data);
 },
 
-renderChart(data){
+renderChart(data) {
   const canvas = document.getElementById("evoChart");
-  if(!canvas) return;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
 
   // ── Clear
@@ -994,7 +994,7 @@ renderChart(data){
   data.forEach((d, i) => {
     const x = xAt(i);
     const y = yV(d.evoSpeed);
-    if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
 
@@ -1005,7 +1005,7 @@ renderChart(data){
   data.forEach((d, i) => {
     const x = xAt(i);
     const y = yN(d.Ne);
-    if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
 
@@ -1058,16 +1058,15 @@ renderChart(data){
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    // Find nearest point
     let nearest = null, dist = 1e9;
-    for(const pt of points){
+    for (const pt of points) {
       const dv = Math.hypot(mx - pt.x, my - pt.yV);
       const dn = Math.hypot(mx - pt.x, my - pt.yN);
       const dmin = Math.min(dv, dn);
-      if(dmin < dist){ dist = dmin; nearest = pt; }
+      if (dmin < dist) { dist = dmin; nearest = pt; }
     }
 
-    if(nearest && dist < 15){
+    if (nearest && dist < 15) {
       tooltip.style.left = (rect.left + nearest.x + 12) + "px";
       tooltip.style.top = (rect.top + my - 20) + "px";
       tooltip.style.display = "block";
@@ -1083,32 +1082,36 @@ renderChart(data){
 
   canvas.onmouseleave = () => tooltip.style.display = "none";
 },
-};
 
-// Expose & boot Pop
-  mount(containerId="azulian-sim"){
-    const root = document.getElementById(containerId);
-    if(!root){ console.error("[AzulianSim] Missing container"); return; }
-    root.innerHTML = `
-      <h3>Azulian Population Simulator</h3>
-      ${this.renderControls()}
-      <div id="azulian-sim-output" style="margin-top:8px;">
-        ${this.renderTable(this.run())}
-        <canvas id="evoChart" width="800" height="250"
-          style="margin-top:16px;width:100%;background:#0f1720;border-radius:6px;"></canvas>
-      </div>`;
-    this.renderChart(this.run());
+// ✅ now properly *inside* Pop object:
+mount(containerId = "azulian-sim") {
+  const root = document.getElementById(containerId);
+  if (!root) {
+    console.error("[AzulianSim] Missing container");
+    return;
   }
+  root.innerHTML = `
+    <h3>Azulian Population Simulator</h3>
+    ${this.renderControls()}
+    <div id="azulian-sim-output" style="margin-top:8px;">
+      ${this.renderTable(this.run())}
+      <canvas id="evoChart" width="800" height="250"
+        style="margin-top:16px;width:100%;background:#0f1720;border-radius:6px;"></canvas>
+    </div>`;
+  this.renderChart(this.run());
+}
 }; // ✅ close Pop object here
 
 // Expose & boot Pop
 window.AzulianSim = Pop;
-function bootPop(){ 
-  if(document.getElementById("azulian-sim")) Pop.mount("azulian-sim"); 
+function bootPop() {
+  if (document.getElementById("azulian-sim"))
+    Pop.mount("azulian-sim");
 }
-if(document.readyState === "loading")
+if (document.readyState === "loading")
   document.addEventListener("DOMContentLoaded", bootPop);
 else bootPop();
 
 // IIFE end
 })();
+
