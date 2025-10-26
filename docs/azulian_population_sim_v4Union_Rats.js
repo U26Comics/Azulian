@@ -1086,7 +1086,7 @@ renderChart(data){
 };
 
 // Expose & boot Pop
-   mount(containerId="azulian-sim"){
+  mount(containerId="azulian-sim"){
     const root = document.getElementById(containerId);
     if(!root){ console.error("[AzulianSim] Missing container"); return; }
     root.innerHTML = `
@@ -1099,8 +1099,9 @@ renderChart(data){
       </div>`;
     this.renderChart(this.run());
   }
-}; 
+}; // ✅ close Pop object here
 
+// Expose & boot Pop
 window.AzulianSim = Pop;
 function bootPop(){ 
   if(document.getElementById("azulian-sim")) Pop.mount("azulian-sim"); 
