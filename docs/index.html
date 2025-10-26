@@ -1,4 +1,4 @@
-<!doctype html>
+<!doctype html> 
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -58,13 +58,22 @@
   </div>
 
   <!-- Load the combined simulator script -->
-<script src="azulian_population_sim_v4Union_Rats.js"></script>
+  <script src="azulian_population_sim_v4Union_Rats.js"></script>
+
   <script>
     // Lightweight Carrd-safe error handler
     window.addEventListener('error', evt => {
       const el = document.getElementById('error');
       if (el)
         el.textContent = 'Page error: ' + (evt?.message || 'Unknown error');
+    });
+
+    // Auto-mount simulators after DOM loads
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.AzulianLifeSim)
+        AzulianLifeSim.mount('azulian-life-sim');
+      if (window.AzulianSim)
+        AzulianSim.mount('azulian-sim');
     });
   </script>
 </body>
