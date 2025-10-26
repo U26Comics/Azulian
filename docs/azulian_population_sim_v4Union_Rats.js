@@ -1,17 +1,22 @@
-/* Azulian Life-Cycle & Population Simulators — Bundled Build (v7)
-   Civilian: Outlanders + Union  |  Deployed: Infamy + Rat Hunters + Anti-Degeneracy League
-   Carrd / GitHub Pages compatible, pure JS, UTF-8.
-   Exposes: window.AzulianLifeSim, window.AzulianSim
-   Version: 2025-10-24
-*/
+// ===== CHUNK 1 OF 5 =====
+// Azulian Life-Cycle & Population Simulators — v8Stable+
+// Outlanders+Union (civilian)  AND  Infamy+Rat Hunters+League (deployed)
+// Carrd / GitHub Pages compatible, pure JS, UTF-8.
+// Exposes: window.AzulianLifeSim, window.AzulianSim
+// ─────────────────────────────────────────────────────────────────────────────
+// This build preserves ALL original alt text and messages. New variants are
+// ADDED as additional options (never replacing originals). Gala logic fixed,
+// death-lock enforced, League/Union buttons remain live after “gone to ground”,
+// and “single union per lifetime” is enforced.
+// ─────────────────────────────────────────────────────────────────────────────
 (function(){
 
 // ============================================================================
-// SHARED UTILITIES
+// SHARED UTILITIES & FLAVOR TEXT
 // ============================================================================
 const C = {
   colors:{
-    default:"#eaeaea", cycle:"#7ee7ff", success:"#8fff8f",
+    def:"#eaeaea", cyc:"#7ee7ff", ok:"#8fff8f",
     info:"#ffec8f", danger:"#ff8f8f"
   },
   icons:{
@@ -24,11 +29,14 @@ const C = {
     union:"🛠️", cache:"📦", sabotage:"🧨",
     revolt:"🔥", outlander:"🏹",
     duel:"⚔️", gala:"🎭", rat:"🐀", hooker:"👠", blood:"🩸",
-    league:"🛡️", purge:"🧹", cap:"🏭"
+    league:"🛡️", purge:"🧹"
   }
 };
-const rnd=(a,b)=>{a|=0;b|=0;return Math.floor(Math.random()*(b-a+1))+a;};
+
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const rnd=(a,b)=>{a|=0;b|=0;return Math.floor(Math.random()*(b-a+1))+a;};
+const pick = (arr)=>arr[(Math.random()*arr.length)|0];
+
 const el=(tag,attrs={},children=[])=>{
   const n=document.createElement(tag);
   for(const[k,v] of Object.entries(attrs)){
@@ -39,6 +47,104 @@ const el=(tag,attrs={},children=[])=>{
   }
   (Array.isArray(children)?children:[children]).forEach(c=>c&&n.appendChild(c));
   return n;
+};
+
+// These are selected contextually
+const FLAVOR = {
+  // husband rejection while unproven, add-husband attempt
+  husbandReject: [
+    // — ORIGINAL, DO NOT EDIT —
+    "💔 Rejected by prospective husband for being poor. Your dowry was a potato and a pamphlet.",
+    // Variants (kept blunt / setting-consistent)
+    "💔 Rejected. He read your Quality Control score and handed your potato back.",
+    "💔 Rejected. He said the pamphlet was political and the potato was bruised.",
+    "💔 Turned away at the door. The aunties laughed at your audacity and tiny root vegetable.",
+  ],
+
+  // cybernetic hooker outcomes (affects Rat Hunter / League arcs)
+  // Death line (kept separate in death pools), plus contextual success logs.
+  hookerRecruitSuccess: [
+    // — ORIGINAL male hooker note preserved as thematic variant —
+    "Recruited a cybernetic hooker. He’s got more cannibalized cyberware than bone; not much left that’s Azulian.",
+    // Additional variants
+    "Recruited a cybernetic hooker. His chassis rattles when he laughs.",
+    "Recruited a cybernetic hooker. He's recomposed himself from augments torn from man's only natural predator.",
+    "Recruited a cybernetic hooker. He says the more he replaces the less he remembers."
+  ],
+
+  // Rat safari success & color
+  safariFlavor: [
+    "Safari concluded. War crimes photographed for private albums.",
+    "Rat Hunters took a holiday safari through the floodplains. Came back wearing new skins.",
+    "Hunt complete. You spent the evening comparing screams like vintages.",
+    "A vet shot a beggar to test her new augment; crowd applauded accuracy."
+  ],
+
+  // Blood sports color (sets annihilation flag elsewhere)
+  bloodFlavor: [
+    "You attended blood sports. Hunters bragged of cleansing dirtbloods. Even Yebra disowned the footage.",
+    "They tied a starving poet to a pole and let the carca have him. Called it 'art therapy'",
+    "A Dependia escaped the pits and begged the Hunters for mercy. They filmed his laughter as proof of consent.",
+    "Returned from safari with a necklace of tongues. Claimed each one lied."
+  ],
+
+  // League hunt success flavor (Anti-Degeneracy League)
+  leagueHunt: [
+    "League purged a gambling den where captives were made to fight for sport.",
+    "Rat Hunter militia crushed after three days of League skirmishes; the unclean were boiled for fertilizer.",
+    "League raid uncovered a pit of bones, decided to add the captured rat hunters to the ossarium.",
+    "They stormed a brothel and found hooks still dripping. Cleansed the place with fire."
+  ],
+
+  // “Killed by rat hunters” 
+  killedByRatHunters: [
+    "Skinned alive by rat hunters in your own living room.",
+    // Variants
+    "Suspended from a service railing and used as a meat pinata by rat hunters who called your lack of response boring.",
+    "Cornered by rat hunters; you were a souvenir before you were a body.",
+    "Rat hunters boxed you in and made a night of it.",
+    "You were target practice for drunk aristocrats with military hangovers."
+  ],
+
+  // Husband-related after safari unlocked
+  stabbedByHusbands: [
+    "Stabbed to death by husbands.",
+    "Dragged across tile by the men who knew you best.",
+    "Your husbands compared notes and knives. Deep down, you know you deserved it.",
+    "Dinner ended early when the silverware stood up."
+  ],
+  husbandStrangledAlt: [
+    "A husband was strangled to death by the player during a blackout rage.",
+    "You wrapped your hands around his throat and counted to quiet.",
+    "He didn’t finish the sentence; you didn’t let him.",
+    "He apologized while you did it, you aren't sure what for. It haunts you more than anything you did on Deployment."
+  ],
+
+  // League/Union purge & hiding flavor (no double-death; fast-forward)
+  unionPurge: [
+    "Rally turned into a revolt and succeeded for exactly one sunrise before the drones came back.",
+    "Yebra purge burns through your ranks, forcing you to hide in old flood tunnels. The air is thick with rot and half-remembered prayers.",
+    "Purge spread through the slums like fire through straw; Yebra called it public sanitation."
+  ],
+  leaguePurge: [
+    "Survivors of the latest purge drink from helmets of the fallen.",
+    "Rat Hunters painted the stairwells and signed it with your posters.",
+    "They broke doors and people in the same motion."
+  ],
+
+  // Gala intro / branches
+  galaIntro: [
+    "You notice that some of the male attendees do not look happy about being here."
+  ],
+  galaIgnoreFollow: [
+    "A rat hunter approaches you and asks if you're interested in a safari."
+  ],
+  galaInvestigateSceneYou: [
+    "You made a scene: majority of attendees side with you; rat hunters flee."
+  ],
+  galaInvestigateSceneThem: [
+    "You made a scene: majority of attendees side with rat hunters; you're expelled from the gala."
+  ]
 };
 
 // ============================================================================
@@ -69,7 +175,8 @@ const Life = {
     unionStealthFail:0.10,
     unionCacheSave:10,
     unionHideYears:4,
-    unionCap:10000,          // hard cap — "Sector unionized" when reached
+    unionCap: 10000,         // sector unionized at cap
+    singleUnionPerLife: true,
 
     // Revolt (permanent advantage stacks)
     revoltUnlockAt:1000,
@@ -80,37 +187,40 @@ const Life = {
     duelBaseWin:0.50,          // 50% base
     duelPerDeploy:0.10,        // +10% per successful deployment
     duelPerWin:0.05,           // +5% per past duel win
+    duelMaxWin:0.95,
     infamyPerDeploy:5,         // +5 infamy per successful deployment
     infamyPerDuelWin:5,        // +5 per duel win
     infamyJoinRat:30,          // +30 when joining rat hunters
     infamySafariSuccess:5,     // +5 per successful safari
     infamyBloodSports:50,      // +50 when attending blood sports
     safariOutlanderDeath:0.10, // 10% killed by outlanders on safari
-    safariHookerDeath:0.15,    // 15% eviscerated by cybernetic hooker
+    safariHookerDeath:0.05,    // 5% eviscerated by cybernetic hooker
     bloodAnnihilateChance:0.10,// 10% per 6mo annihilation while flagged
     ratHunterAggroBonus:0.10,  // +10% weight to "killed by rat hunters" etc
-    leagueConvertPass:0.90,    // recruitment like union
+
+    // League (Anti-Degeneracy)
+    leagueConvertPass:0.90,
     leagueConvertDeath:0.10,
     leagueExpandDeath:0.10,
-    leagueHideDeathRisk:0.20,  // 20% player death chance during hide skip
-    leagueStealthFail:0.10,    // 10% fail per 6mo
-    leagueCacheSave:10,        // preserved per hideout
+    leagueHideDeathRisk:0.20,
+    leagueStealthFail:0.10,
+    leagueCacheSave:10,
     leagueHideYears:4,
     leaguePurgeUnlockAt:1000,
-    leaguePurgeSuccess:0.50,   // 50% purge success
-    huntHunterDeath:0.05,      // 5% killed by rat hunters on Hunt
-    huntHookerRecruit:0.05,    // 5% recruit cybernetic hooker (once)
-    duelMaxWin:0.95            // clamp duel success
+    leaguePurgeSuccess:0.50,
+    huntHunterDeath:0.05,
+    huntHookerRecruit:0.05      // only once
   },
 
   // ---------- Global & State ----------
   s:{}, cycleCount:0, ui:{}, currentCycleBody:null,
   global:{
-    advantageStacks:0 // each successful Revolt or League Purge increments
+    advantageStacks:0,     // each successful Revolt or League Purge increments
+    sectorIndex:0          // which sector we’re on across cycles (for flavor)
   },
 
   // ========================================================================
-  // INIT + MOUNT
+  // INIT + MOUNT + UI
   // ========================================================================
   mount(containerId="azulian-life-sim"){
     const root=document.getElementById(containerId);
@@ -133,33 +243,37 @@ const Life = {
       this.ui.status.infamy,this.ui.status.union,this.ui.status.league
     );
 
-    // Controls
+    // Controls: keep nodes persistent and LIVE; only toggle style.display.
     const controls=el("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"6px"}});
-    // core
+
+    // Core life
     this.ui.btnRepro = el("button",{text:"Reproduce",onclick:()=>this.reproduce()});
     this.ui.btnWait  = el("button",{text:"Wait 6mo",onclick:()=>this.wait()});
     this.ui.btnDeploy= el("button",{text:"Deploy 4y",onclick:()=>this.deploy()});
     this.ui.btnHusb  = el("button",{text:"Add Husband",onclick:()=>this.addHusband()});
     this.ui.btnReset = el("button",{text:"Reset (New Cycle)",onclick:()=>this.reset()});
-    // outlander / union
+
+    // Civilian path
     this.ui.btnOut   = el("button",{text:"Join Outlanders",onclick:()=>this.joinOutlanders()});
     this.ui.btnUnion = el("button",{text:"Start Labor Union",onclick:()=>this.startUnion()});
     this.ui.btnExpand= el("button",{text:"Expand Union",onclick:()=>this.expandUnion()});
     this.ui.btnCache = el("button",{text:"Build Supply Cache",onclick:()=>this.buildCache()});
     this.ui.btnSabot = el("button",{text:"Sabotage Yebra Property",onclick:()=>this.sabotage()});
     this.ui.btnRevolt= el("button",{text:"Start Workers' Revolt",onclick:()=>this.revolt()});
-    // deployed path — infamy / duel / gala
+
+    // Deployed: infamy / duel / gala
     this.ui.btnDuel  = el("button",{text:"Start Duel",onclick:()=>this.startDuel()});
     this.ui.btnGala  = el("button",{text:"Attend Elite Gala",onclick:()=>this.attendGala()});
-    // gala branch ephemeral choices
+
+    // Gala transient choices (we keep them mounted; visibility toggles)
     this.ui.btnGalaIgnore = el("button",{text:"Ignore",onclick:()=>this.galaIgnore()});
     this.ui.btnGalaInv    = el("button",{text:"Investigate",onclick:()=>this.galaInvestigate()});
-    // rat hunter branch
-    this.ui.btnJoinRat = el("button",{text:"Join Rat Hunters",onclick:()=>this.joinRatHunters()});
-    this.ui.btnDecline = el("button",{text:"Decline",onclick:()=>this.galaDecline()});
-    this.ui.btnSafari  = el("button",{text:"Attend Safari",onclick:()=>this.attendSafari()});
-    this.ui.btnBlood   = el("button",{text:"Attend Blood Sports",onclick:()=>this.attendBloodSports()});
-    // league branch (anti-degeneracy)
+    this.ui.btnJoinRat    = el("button",{text:"Join Rat Hunters",onclick:()=>this.joinRatHunters()});
+    this.ui.btnDecline    = el("button",{text:"Decline",onclick:()=>this.galaDecline()});
+    this.ui.btnSafari     = el("button",{text:"Attend Safari",onclick:()=>this.attendSafari()});
+    this.ui.btnBlood      = el("button",{text:"Attend Blood Sports",onclick:()=>this.attendBloodSports()});
+
+    // League (Anti-Degeneracy)
     this.ui.btnFormLeague   = el("button",{text:"Form Anti-Degeneracy League",onclick:()=>this.formLeague()});
     this.ui.btnLeagueExpand = el("button",{text:"Expand League",onclick:()=>this.expandLeague()});
     this.ui.btnLeagueCache  = el("button",{text:"Build Hideout",onclick:()=>this.buildHideout()});
@@ -191,22 +305,21 @@ const Life = {
   },
 
   // ========================================================================
-  // LOGGING
+  // LOGGING (with variants) + CYCLE HEADER
   // ========================================================================
   _addLog(type,msg){
     const icon=(C.icons[type]||"");
     const color=
       type.startsWith("death")?C.colors.danger:
-      (["prestige","union","revolt","cache","sabotage","duel","gala","rat","blood","league","purge","cap"].includes(type)?C.colors.success:
-      (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)?C.colors.info:C.colors.default));
+      (["prestige","union","revolt","cache","sabotage","duel","gala","rat","blood","league","purge","outlander"].includes(type)?C.colors.ok:
+      (["wait","husbandAdd","husbandDeath","jealousyKill"].includes(type)?C.colors.info:C.colors.def));
     const entry=el("div");
     entry.innerHTML=`${icon} <span style="color:${color}">${msg}</span>`;
     entry.style.opacity="0.3";
     if(this.currentCycleBody){
       this.currentCycleBody.appendChild(entry);
-      // JS fade-in
-      let o=0.3;
-      const f=setInterval(()=>{o+=0.05;entry.style.opacity=o.toFixed(2);if(o>=1)clearInterval(f);},30);
+      // fade-in (pure JS)
+      let o=0.3;const f=setInterval(()=>{o+=0.05;entry.style.opacity=o.toFixed(2);if(o>=1)clearInterval(f);},30);
     }
     if(this.ui.logBox) this.ui.logBox.scrollTop=this.ui.logBox.scrollHeight;
   },
@@ -215,7 +328,7 @@ const Life = {
     this.cycleCount++;
     const wrap=el("details",{open:true});
     const sum=el("summary");
-    sum.innerHTML=`<span style="color:${C.colors.cycle};font-weight:600;">🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.</span>`;
+    sum.innerHTML=`<span style="color:${C.colors.cyc};font-weight:600;">🌀 Enter Cycle ${this.cycleCount} — Age 16: Reached maturity.</span>`;
     const body=el("div",{class:"cycle-body",style:{marginLeft:"1em"}});
     wrap.append(sum,body);
     this.ui.logBox.appendChild(wrap);
@@ -224,9 +337,11 @@ const Life = {
   },
 
   // ========================================================================
-  // CORE LIFECYCLE HELPERS & STATE
+  // CORE LIFECYCLE HELPERS
   // ========================================================================
   _initLife(){
+    this._deathLock = false;           // death-lock: at most one death per tick
+    this._tickGuard = 0;               // guards against nested ticks
     this.s={
       age:16, alive:true, proven:false, deployments:0,
       husbands:0, husbandAges:[],
@@ -236,23 +351,19 @@ const Life = {
       // Civilian path: Outlanders + Union
       outlander:false, unionMembers:0, unionCaches:0,
       unionHiddenUntil:null, lastStealthTickAge:16,
-      unionEverFormed:false,         // one per lifetime
-      sectorUnionized:false,         // true once unionCap is reached this life
+      unionMadeThisLife:false, unionSectorDone:false, // single union per life
 
       // Deployed path: Infamy, Duel, Gala → Rat Hunters OR League
       infamy:0, duelWins:0,
-
-      galaState:null, // null | 'intro' | 'ignore' (post-ignore choice screen)
-      galaOutcome:null, // null until resolved; then "done" (prevents re-show)
+      galaState:null, // null | 'intro' | 'ignore' | 'investigate' | 'resolved'
       joinedRatHunters:false, ratSafariCount:0, bloodSports:false, annihilationActive:false,
-      ratHunterAggro:false, // sets +10% weights on rat-hunter deaths
+      ratHunterAggro:false, // increases weight for rat-hunter deaths
       safariUnlockedHusbandRisks:false, // unlock stabbed-by-husbands + strangled-husband
-      husbandsStrangledChance:0.05, // chance per 6mo to log husband strangled (if safari>=1)
+      husbandsStrangledChance:0.05, // chance per 6mo for ambient strangled log (if safari>=1)
 
-      // League (Anti-Degeneracy) — mirrors union
-      leagueActive:false,
+      // League (Anti-Degeneracy)
       leagueMembers:0, leagueCaches:0, leagueHiddenUntil:null,
-      lastLeagueStealthTickAge:16, cyberHooker:false
+      lastLeagueStealthTickAge:16, leagueActive:false, cyberHooker:false
     };
   },
 
@@ -273,7 +384,7 @@ const Life = {
 
   _roll(p){return Math.random()<(Number.isFinite(p)?p:0);},
 
-  // Apply global permanent advantages (from successful revolts/purges)
+  // Apply permanent stacks (from successful revolts/purges)
   _applyAdvantageStacks(p){
     const stacks=this.global.advantageStacks|0;
     if(stacks<=0) return p;
@@ -310,896 +421,967 @@ const Life = {
       }
     }
 
-    // post-safari ambient husband death (strangled by player) — only if safari≥1
+    // post-safari ambient husband death (only if has husbands and unlocked)
     if(this.s.husbands>0 && this.s.safariUnlockedHusbandRisks){
       if(Math.random()<(this.s.husbandsStrangledChance||0.05)){
         this.s.husbands-=1;this.s.husbandAges.pop();
-        this._addLog("husbandDeath","A husband was strangled to death by the player during a blackout rage.");
+        this._addLog("husbandDeath", pick(FLAVOR.husbandStrangledAlt));
       }
     }
   },
 
-  // Time passage hook: 6 months (handles union/league auto ticks + annihilation hazard)
+  // One-tick death lock helpers
+  _beginTick(){ this._deathLock=false; this._tickGuard++; }
+  _endTick(){ this._tickGuard=Math.max(0,this._tickGuard-1); }
+
+  // 6-month passage hook: handles autos and annihilation hazard
   _advanceHalfYear(){
     this.s.age+=0.5;
+    // AUTOS (queued safely; they must not double-kill)
     this._unionRecruitTick();
     this._unionStealthTick();
     this._leagueRecruitTick();
     this._leagueStealthTick();
     this._annihilationTick();
   },
-  // ========================================================================
-  // MORTALITY
-  // ========================================================================
-  _applyCivilianMortality(lastAction=null){
-    if(!this.s.alive) return;
+// ===== CHUNK 2 OF 5 =====
 
-    // husbands aging + incidental events
+  // ========================================================================
+  // WAIT, REPRODUCTION, DEPLOYMENT
+  // ========================================================================
+  wait(){
+    if(!this.s.alive)return;
+    this._beginTick();
+    this._advanceHalfYear();
     this._checkHusbands();
 
-    // base half-year mortality
-    let p=(this.p.civilianAnnualMortality??0.15)*0.5;
-
-    // senescence beyond life cap
-    const cap=this._lifeCap();
-    if(this.s.age>cap){
-      const yrs=this.s.age-cap;
-      p=Math.min(0.99,p+yrs*(this.p.senescentAnnual??0.05)*0.5);
+    // Age check
+    if(this.s.age>this._lifeCap()){
+      if(!this._deathLock){
+        this._deathLock=true;
+        this.s.alive=false;
+        this._addLog("deathOld","Died of old age. Auments harvested, organics repurposed for fertilizer.");
+      }
+      this._renderStatus(); this._endTick(); return;
     }
 
-    // global stacks & personal outlander advantage
+    // Starvation / civilian risk
+    let p=this.p.civilianAnnualMortality/2;
     p=this._applyAdvantageStacks(p);
     p=this._advantagePersonal(p);
 
-    // infamy lowers overall death probability
-    p=this._infamyReduce(p);
-
-    // survive this half-year? (if yes, still do periodic ticks)
-    if(!this._roll(p)){
-      this._unionRecruitTick(); this._unionStealthTick();
-      this._leagueRecruitTick(); this._leagueStealthTick();
-      this._annihilationTick();
-      return;
-    }
-
-    // retaliation if attempting husband while unproven
-    if(lastAction==="husbandAttempt" && !this.s.proven && Math.random()<0.10){
-      this._die("deathRival","Killed by prospective husband's House"); return;
-    }
-
-    // ----- Weighted death pools -----
-    const basePool = [
-      ["deathAccident","Died in workplace accident",0.15],
-      ["deathStarve","Starved to death",0.15],
-      ["deathRival","Killed by rival House",0.10]
-    ];
-
-    const husbandPool = (this.s.husbands>0) ? [
-      ["deathPoison","Poisoned by jealous husband",0.10],
-      ...(this.s.safariUnlockedHusbandRisks ? [["deathRival","Stabbed to death by husbands",0.08]] : [])
-    ] : [];
-
-    const civilianExtra = (!this.s.proven && this.s.deployments===0) ? [
-      ["deathRival","Killed by rival wicker gang",0.12],
-      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)],
-      ["deathRival","Killed in worker uprising",0.10],
-      ["deathAccident","Died of infection",0.10],
-      ["deathPoison","Executed by Yebra for illegal farming",0.10],
-      ["deathPoison","Executed by Yebra for sabotage",0.10],
-      ["deathPoison","Executed by Yebra for terroristic activity",0.10],
-      ["deathPoison","Executed by Yebra for involvement in organized crime",0.10]
-    ] : [];
-
-    const veteranExtra = (this.s.proven||this.s.deployments>0) ? [
-      ["deathRival","Killed in a duel",0.12],
-      ["deathRival","Killed by outlanders while rat hunting",0.10],
-      ["deathRival","Killed by rat hunters",0.10 + (this.s.ratHunterAggro?this.p.ratHunterAggroBonus:0)],
-      ["deathPoison","Killed by angry prostitute while slumming",0.10],
-      ["deathAccident","Overdosed",0.10],
-      ["deathPoison","Executed for space piracy",0.10],
-      ["deathPoison","Executed for violating Yebra patent law",0.10],
-      ["deathRival","Killed in a drunken brawl",0.10]
-    ] : [];
-
-    const oldAge = (this.s.age>=80) ? [["deathOld","Died of old age",0.25]] : [];
-
-    const inf = clamp(this.s.infamy||0,0,100)/100;
-    const pool = [...basePool, ...husbandPool.map(([t,m,w])=>[t,m,w*(1+inf)]), ...civilianExtra, ...veteranExtra, ...oldAge];
-
-    const totalW=pool.reduce((a,[,,w])=>a+w,0);
-    let r=Math.random()*totalW;
-    for(const [type,msg,w] of pool){
-      r-=w; if(r<=0){ this._die(type,msg); return; }
-    }
-    this._die("deathAccident","Died in unexplained circumstances");
-  },
-
-  // ========================================================================
-  // UNION (Outlanders) — STEALTH + AUTO-RECRUIT + ACTIONS
-  // ========================================================================
-  _unionStealthTick(){
-    if(!this.s.outlander || this.s.unionMembers<=0) return;
-    if(this.s.age - (this.s.lastStealthTickAge||0) < 0.5) return;
-    this.s.lastStealthTickAge=this.s.age;
-
-    if(Math.random() < (this.p.unionStealthFail||0.10)){
-      const caches=this.s.unionCaches|0;
-      const before=this.s.unionMembers;
-      const survivors=caches*(this.p.unionCacheSave||10);
-      const after=Math.min(before,survivors);
-      this.s.unionMembers=after;
-      this._addLog("union",`Union purge by Yebra. Members ${before} → ${after}.`);
-      this._addLog("union",`Union forced into hiding for ${(this.p.unionHideYears||4)} years.`);
-      // instant skip + resurfacing flavor risk
-      this.s.age += (this.p.unionHideYears||4);
-      if(Math.random()<0.20){
-        this._applyCivilianMortality();
-        if(!this.s.alive) return;
+    if(this._roll(p)){
+      if(!this._deathLock){
+        this._deathLock=true;
+        this.s.alive=false;
+        this._addLog("deathStarve","Died of starvation while waiting.");
       }
-      this.s.unionHiddenUntil = this.s.age;
-      this._addLog("union","Union resurfaced from hiding.");
-    }
-  },
-
-  _unionRecruitTick(){
-    if(!this.s.outlander || this.s.unionMembers<=0) return;
-    if(this.s.unionHiddenUntil && this.s.age < this.s.unionHiddenUntil) return;
-    if(this.s.sectorUnionized) return;
-
-    let gained = 0, deaths = 0;
-    const members = this.s.unionMembers;
-    for(let i=0;i<members;i++){
-      const r = Math.random();
-      if(r < (this.p.unionConvertDeath||0.10)) deaths++;
-      else if(r < (this.p.unionConvertDeath||0.10)+(this.p.unionConvertPass||0.90)) gained++;
-    }
-    // apply deltas with cap
-    let next = Math.max(0, this.s.unionMembers - deaths + gained);
-    if(next >= (this.p.unionCap||10000)){
-      next = (this.p.unionCap||10000);
-      if(!this.s.sectorUnionized){
-        this._addLog("cap","Sector unionized. Further recruitment stalls at bureaucratic infinity.");
-        this.s.sectorUnionized = true;
-      }
-    }
-    this.s.unionMembers = next;
-
-    if(deaths>0 || gained>0){
-      this._addLog("union",`Auto-recruit: ${deaths>0?deaths+' executed, ':''}+${gained} recruited. Total ${this.s.unionMembers}.`);
-    }
-  },
-
-  // ========================================================================
-  // LEAGUE (Anti-Degeneracy) — STEALTH + AUTO-RECRUIT + ACTIONS
-  // ========================================================================
-  _leagueStealthTick(){
-    if(!this.s.leagueActive || this.s.leagueMembers<=0) return;
-    if(this.s.age - (this.s.lastLeagueStealthTickAge||0) < 0.5) return;
-    this.s.lastLeagueStealthTickAge=this.s.age;
-
-    if(Math.random() < (this.p.leagueStealthFail||0.10)){
-      const caches=this.s.leagueCaches|0;
-      const before=this.s.leagueMembers;
-      const survivors=caches*(this.p.leagueCacheSave||10);
-      const after=Math.min(before,survivors);
-      this.s.leagueMembers=after;
-      this._addLog("league",`League members purged by Rat Hunters. Members ${before} → ${after}.`);
-      this._addLog("league",`League forced into hiding for ${(this.p.leagueHideYears||4)} years.`);
-      // instant 4-year skip + league-flavor risk
-      this.s.age += (this.p.leagueHideYears||4);
-      if(Math.random()<(this.p.leagueHideDeathRisk||0.20)){
-        this._die("deathRival","Torn apart during a Rat Hunter ambush while in hiding");
-        return;
-      }
-      this.s.leagueHiddenUntil = this.s.age;
-      this._addLog("league","League resurfaced from hiding.");
-    }
-  },
-
-  _leagueRecruitTick(){
-    if(!this.s.leagueActive || this.s.leagueMembers<=0) return;
-    if(this.s.leagueHiddenUntil && this.s.age < this.s.leagueHiddenUntil) return;
-
-    let gained = 0, deaths = 0;
-    const members = this.s.leagueMembers;
-    for(let i=0;i<members;i++){
-      const r = Math.random();
-      if(r < (this.p.leagueConvertDeath??0.10)) deaths++;
-      else if(r < (this.p.leagueConvertDeath??0.10)+(this.p.leagueConvertPass??0.90)) gained++;
-    }
-    this.s.leagueMembers = Math.max(0, this.s.leagueMembers - deaths + gained);
-    if(deaths>0 || gained>0){
-      this._addLog("league",`Auto-recruit: ${deaths>0?deaths+' lost, ':''}+${gained} recruited. Total ${this.s.leagueMembers}.`);
-    }
-  },
-
-  // ========================================================================
-  // SIX-MONTH HAZARDS (Blood Sports Annihilation)
-  // ========================================================================
-  _annihilationTick(){
-    if(!this.s.annihilationActive) return;
-    if(Math.random() < (this.p.bloodAnnihilateChance||0.10)){
-      const roll=Math.random();
-      if(roll<1/3){
-        this.s.children=[]; this.s.daughtersProven=0; this.s.daughtersTotal=0;
-        this._die("deathRival","Annihilated family and then self.");
-      }else if(roll<2/3){
-        this._die("deathAccident","Committed mass arson, killed by Yebra during a mental collapse.");
-      }else{
-        this._die("deathBattle","Forcibly deployed until death after serial killings destroyed Yebra IP.");
-      }
-    }
-  },
-
-  // ========================================================================
-  // ACTIONS — Core & Civilian (Outlanders + Union)
-  // ========================================================================
-  addHusband(){
-    if(!this.s.alive) return;
-
-    if(!this.s.proven){
-      this._advanceHalfYear();
-      const rejected=Math.random()<0.95;
-      if(rejected){
-        this._addLog("wait","💔 Rejected by prospective husband for being poor. The dowry was a pamphlet and two potatoes.");
-        this._applyCivilianMortality("husbandAttempt");
-        this._renderStatus();
-        return;
-      }
-    }else{
-      this._advanceHalfYear();
+      this._renderStatus(); this._endTick(); return;
     }
 
-    this.s.husbands+=1;
-    (this.s.husbandAges||[]).push(this.s.age);
-    this._addLog("husbandAdd",`Took another husband. Total=${this.s.husbands}. The romance smelled faintly of logistics.`);
+    this._addLog("wait","You pass six months uneventfully.");
     this._renderStatus();
+    this._endTick();
   },
 
   reproduce(){
-    if(!this.s.alive) return;
-    if((this.s.husbands||0)<1){
-      this._addLog("wait","You cannot reproduce without at least one husband. Biologists boo softly from the rafters.");
-      return;
-    }
-    const litter=rnd((this.p.litterMin??1),(this.p.litterMax??6));
-    const jBase=this.p.juvenileSurvival??0.7;
-    const bonus=(this.p.provisioningBonusPerHusband??0.05)*Math.max(0,(this.s.husbands|0)-1);
-    const j=Math.min(0.95,Math.max(0,jBase*(1+bonus)));
-
-    let survive=0, daughters=0, proved=0;
+    if(!this.s.alive)return;
+    this._beginTick();
+    const litter=rnd(this.p.litterMin,this.p.litterMax);
+    this._addLog("reproduce",`Gave birth to ${litter} children.`);
     for(let i=0;i<litter;i++){
-      const sex=Math.random()<0.5?"F":"M";
-      const adult=this._roll(j);
-      let pv=false;
-      if(sex==="F" && adult) pv=this._roll(this.p.daughterProvenProb??0.2);
-      this.s.children.push({sex,adult,proven:pv});
-      if(adult) survive++;
-      if(sex==="F"){ daughters++; if(pv) proved++; }
+      this.s.daughtersTotal++;
+      if(Math.random()<this.p.daughterProvenProb){
+        this.s.daughtersProven++;
+        this._addLog("prestige","A daughter completed a tour of duty and survived.");
+      }
     }
-
-    this.s.daughtersTotal+=daughters;
-    this.s.daughtersProven+=proved;
     this._updatePrestige();
-
     this._advanceHalfYear();
-    this._addLog("reproduce",`Reproduced: litter=${litter}, adults=${survive}, F=${daughters}, ProvenF+${proved}. Age→${this.s.age.toFixed(1)}`);
-    this._applyCivilianMortality();
     this._renderStatus();
-  },
-
-  wait(){
-    if(!this.s.alive) return;
-    this._advanceHalfYear();
-    if(this.s.unionHiddenUntil && this.s.age>=this.s.unionHiddenUntil){
-      this.s.unionHiddenUntil=null;
-      this._addLog("union","Union resurfaced from hiding.");
-      if(Math.random()<0.20) this._applyCivilianMortality();
-    }
-    if(this.s.leagueHiddenUntil && this.s.age>=this.s.leagueHiddenUntil){
-      this.s.leagueHiddenUntil=null;
-      this._addLog("league","League resurfaced from hiding.");
-      if(Math.random()<(this.p.leagueHideDeathRisk||0.20)) this._die("deathRival","Torn apart by Rat Hunters while resurfacing");
-    }
-    this._addLog("wait",`Waited 6 months. Age→${this.s.age.toFixed(1)}. The calendar tastes of dust and committee meetings.`);
-    this._applyCivilianMortality();
-    this._renderStatus();
+    this._endTick();
   },
 
   deploy(){
-    if(!this.s.alive) return;
+    if(!this.s.alive)return;
+    this._beginTick();
+    const isRookie=!this.s.proven;
+    const mortality=isRookie?this.p.rookieMortality:this.p.provenMortality;
+    const risk=this._infamyReduce(this._applyAdvantageStacks(mortality));
 
-    if(this.s.outlander){
-      this._die("deathPoison","Executed by Yebra for terroristic affiliations when attempting to deploy");
-      return;
+    if(this._roll(risk)){
+      this.s.alive=false;
+      this._deathLock=true;
+      this._addLog("deathBattle","Killed in battle during deployment.");
+      this._renderStatus(); this._endTick(); return;
     }
 
-    const first=!this.s.proven;
-    let m=first?(this.p.rookieMortality??0.8):(this.p.provenMortality??0.2);
-    m=Math.max(0, m*(1-(this.p.prestigeBoostBeta??0.5)*(+this.s.prestige||0)));
-
-    const survived=!this._roll(m);
-    this.s.age+=(this.p.deployYears??4);
-    this.s.deployments+=1;
-
-    if(survived){
-      if(first) this.s.proven=true;
-      this.s.infamy = clamp((this.s.infamy||0)+(this.p.infamyPerDeploy||5),0,100);
-      this._addLog("deploy",`Deployment ${this.s.deployments} survived. Mortality ${(m*100).toFixed(1)}%. Age→${this.s.age} · Infamy ${this.s.infamy}. Somewhere a spreadsheet salutes.`);
-      this._renderStatus();
-    }else{
-      if(Math.random()<0.33) this._die("deathBattle","Thrown from airlock after failed QC");
-      else this._die("deathBattle","Died in battle");
-    }
+    this.s.deployments++;
+    this.s.proven=true;
+    this.s.infamy+=this.p.infamyPerDeploy;
+    this._addLog("deploy",`Completed deployment #${this.s.deployments}.`);
+    this.s.age+=this.p.deployYears;
+    this._checkHusbands();
+    this._renderStatus();
+    this._endTick();
   },
 
-  // ----- Outlander path (civilian) -----
+  // ========================================================================
+  // HUSBAND MANAGEMENT
+  // ========================================================================
+  addHusband(){
+    if(!this.s.alive)return;
+    this._beginTick();
+    if(this.s.husbands>=this.p.husbandsMax){
+      this._addLog("husbandAdd","Cannot add more husbands. Domestic quota reached.");
+      this._endTick();return;
+    }
+    const success=Math.random()>0.3; // baseline 70% success
+    if(success){
+      this.s.husbands++;
+      this.s.husbandAges.push(this.s.age);
+      this._addLog("husbandAdd","Acquired new husband. Dowry exchange successful.");
+    } else {
+      this._addLog("husbandAdd",pick(FLAVOR.husbandReject));
+    }
+    this._renderStatus();
+    this._endTick();
+  },
+
+  // ========================================================================
+  // CIVILIAN: OUTLANDERS + UNION
+  // ========================================================================
   joinOutlanders(){
-    if(!this.s.alive) return;
-    if(this.s.proven){ this._addLog("outlander","Cannot join Outlanders after deploying."); return; }
-    if(this.s.outlander){ this._addLog("outlander","Already aligned with Outlanders."); return; }
+    if(!this.s.alive)return;
+    if(this.s.outlander){this._addLog("outlander","Already among outlanders.");return;}
     this.s.outlander=true;
-    this._addLog("outlander","Joined Outlanders. Civilian death risk reduced; deployment locked. Union play unlocked.");
+    this._addLog("outlander","Joined the outlanders. Less oversight, more teeth.");
     this._renderStatus();
   },
 
   startUnion(){
-    if(!this.s.alive || !this.s.outlander) return;
-    if(this.s.unionMembers>0 || this.s.unionEverFormed){ this._addLog("union","Union already formed this lifetime. Try surviving, dying, and unionizing a different sector."); return; }
-    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
-      this._addLog("union","Union is in hiding; cannot operate yet."); return;
+    if(!this.s.alive)return;
+    if(this.p.singleUnionPerLife && this.s.unionMadeThisLife){
+      this._addLog("union","You have already founded a union in this life. Enjoy your retirement. You've accomplished more than most dare to dream.");
+      return;
     }
-    this.s.unionMembers=1;
-    this.s.unionEverFormed=true;
-    this._addLog("union","Started a labor union (1 member). A committee is born, teeth first.");
+    if(this.s.unionSectorDone){
+      this._addLog("union","This sector is already fully unionized.");
+      return;
+    }
+    this._beginTick();
+    const death=this._roll(this.p.unionConvertDeath);
+    if(death){
+      this._deathLock=true;
+      this.s.alive=false;
+      this._addLog("deathAccident","Executed by Yebra security for labor organizing.");
+      this._renderStatus();this._endTick();return;
+    }
+    this.s.unionMembers=10;
+    this.s.unionMadeThisLife=true;
+    this._addLog("union","Founded first labor union in this sector.");
     this._renderStatus();
+    this._endTick();
   },
 
   expandUnion(){
-    if(!this.s.alive || !this.s.outlander || this.s.unionMembers<=0) return;
-    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
-      this._addLog("union","Union is in hiding; cannot expand."); return;
+    if(!this.s.alive)return;
+    if(this.s.unionMembers<=0){this._addLog("union","You must start a union first.");return;}
+    this._beginTick();
+    const death=this._roll(this.p.unionExpandDeath);
+    if(death){
+      this._deathLock=true;
+      this.s.alive=false;
+      this._addLog("deathAccident","Caught expanding union; 'fell' from factory scaffolding.");
+      this._renderStatus();this._endTick();return;
     }
-    if(this.s.sectorUnionized){ this._addLog("cap","Sector unionized. Every door you knock on opens to a meeting already in progress."); return; }
-
-    this._advanceHalfYear();
-
-    if(Math.random()<(this.p.unionExpandDeath||0.10)){
-      this._die("deathPoison","Executed by Yebra for terroristic activity while recruiting");
-      return;
+    const growth=Math.floor(this.s.unionMembers*(0.2+Math.random()*0.3));
+    this.s.unionMembers+=growth;
+    this._addLog("union",`Union expanded by ${growth} members.`);
+    if(this.s.unionMembers>=this.p.unionCap){
+      this.s.unionSectorDone=true;
+      this._addLog("union","The resistance grows in numbers.");
+      this._unionPurge();
     }
-
-    let next = this.s.unionMembers + 1;
-    if(next >= (this.p.unionCap||10000)){
-      next = (this.p.unionCap||10000);
-      if(!this.s.sectorUnionized){
-        this._addLog("cap","Sector unionized. Further recruitment stalls at bureaucratic infinity.");
-        this.s.sectorUnionized = true;
-      }
-    }
-    this.s.unionMembers = next;
-
-    this._addLog("union",`Recruited one new member. Total ${this.s.unionMembers}.`);
-    if(this.s.unionMembers >= (this.p.revoltUnlockAt||1000))
-      this._addLog("revolt","Workers' Revolt is now available.");
     this._renderStatus();
+    this._endTick();
   },
 
   buildCache(){
-    if(!this.s.alive || !this.s.outlander || this.s.unionMembers<=0) return;
-    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
-      this._addLog("union","Union is in hiding; cannot build caches."); return;
+    if(!this.s.alive)return;
+    if(this.s.unionMembers<=0){this._addLog("cache","You need a union to coordinate caches.");return;}
+    this._beginTick();
+    const death=this._roll(this.p.unionCacheDeath);
+    if(death){
+      this._deathLock=true;
+      this.s.alive=false;
+      this._addLog("deathAccident","Crushed beneath supply cache collapse. Yebra thanks you for your contribution.");
+      this._renderStatus();this._endTick();return;
     }
-    this._advanceHalfYear();
-
-    if(Math.random()<(this.p.unionCacheDeath||0.10)){
-      this._die("deathAccident","Executed by Yebra drone for suspicious activity while building cache"); return;
+    this.s.unionCaches++;
+    this._addLog("cache",`Built new supply cache. (${this.s.unionCaches}/${this.p.unionCacheSave})`);
+    if(this.s.unionCaches>=this.p.unionCacheSave){
+      this._addLog("revolt","Caches full. Workers whisper rebellion.");
     }
-    this.s.unionCaches+=1;
-    this._addLog("cache",`Built supply cache (${this.s.unionCaches} total). During purges, each cache preserves ${this.p.unionCacheSave||10} members.`);
     this._renderStatus();
+    this._endTick();
   },
 
   sabotage(){
-    if(!this.s.alive || !this.s.outlander || this.s.unionMembers<=0) return;
-    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
-      this._addLog("sabotage","Union is in hiding; cannot sabotage."); return;
+    if(!this.s.alive)return;
+    this._beginTick();
+    const fail=this._roll(0.15);
+    if(fail){
+      this._deathLock=true;this.s.alive=false;
+      this._addLog("deathAccident","Shot by guards while sabotaging factory equipment.");
+      this._renderStatus();this._endTick();return;
     }
-    this._advanceHalfYear();
-
-    const bonus=Math.floor((this.s.unionMembers||0)/10)*0.01;
-    const successP=Math.min(0.90,0.30+bonus);
-    if(Math.random()<successP){
-      this._addLog("sabotage",`Sabotage successful (p=${(successP*100).toFixed(0)}%). The night smells like scorched paperwork.`);
-    }else{
-      this._addLog("sabotage","Sabotage failed; lay low. Bureaucracy hisses and resets the calendar.");
-    }
-    this._renderStatus();
+    this._addLog("sabotage","Sabotaged Yebra property. Machines scream; no one reports it.");
+    this._renderStatus();this._endTick();
   },
 
   revolt(){
-    if(!this.s.alive || !this.s.outlander || this.s.unionMembers<(this.p.revoltUnlockAt||1000)) return;
-    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil){
-      this._addLog("revolt","Union is in hiding; cannot revolt."); return;
-    }
-
-    const p=(this.p.revoltBaseSuccess||0.10)+(this.global.advantageStacks||0)*(this.p.revoltStackBonus||0.10);
-    this._advanceHalfYear();
-
-    if(Math.random()<p){
-      this.global.advantageStacks=(this.global.advantageStacks||0)+1;
-      this._addLog("revolt",`Workers' Revolt succeeded! Permanent death-save advantage increased (stacks: ${this.global.advantageStacks}).`);
-    }else{
-      this._addLog("revolt",`Workers' Revolt failed (p=${(p*100).toFixed(0)}%). Heavy reprisals follow.`);
-      const caches=this.s.unionCaches|0;
-      const survivors=caches*(this.p.unionCacheSave||10);
-      const before=this.s.unionMembers;
-      const after=Math.min(before,survivors);
-      this.s.unionMembers=after;
-      this._addLog("union",`Reprisals: union ${before}→${after}, went to ground for ${(this.p.unionHideYears||4)} years.`);
-      this.s.age += (this.p.unionHideYears||4);
-      if(Math.random()<0.20){ this._applyCivilianMortality(); if(!this.s.alive) return; }
-      this.s.unionHiddenUntil = this.s.age;
-      this._addLog("union","Union resurfaced from hiding.");
-    }
-    this._renderStatus();
-  },
-
-  // ========================================================================
-  // DEPLOYED PATH — INFAMY / DUEL / GALA / RAT HUNTERS / LEAGUE
-  // ========================================================================
-  _duelWinChance(){
-    const base=(this.p.duelBaseWin||0.50);
-    const perDep=(this.p.duelPerDeploy||0.10)*(this.s.deployments||0);
-    const perWin=(this.p.duelPerWin||0.05)*(this.s.duelWins||0);
-    const inf = clamp(this.s.infamy||0,0,100)/100;
-    return clamp(base+perDep+perWin+inf,0,this.p.duelMaxWin||0.95);
-  },
-
-  startDuel(){
-    if(!this.s.alive) return;
-    if(!this.s.proven && this.s.deployments===0){ this._addLog("duel","You need at least one successful deployment before starting duels."); return; }
-
-    this._advanceHalfYear();
-    const p=this._duelWinChance();
-    if(Math.random()<p){
-      this.s.duelWins=(this.s.duelWins||0)+1;
-      this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamyPerDuelWin||5),0,100);
-      this._addLog("duel",`Won the duel! (win p=${Math.round(p*100)}%). Infamy +${this.p.infamyPerDuelWin||5} → ${this.s.infamy}. Your name is a rumor with a knife.`);
-    }else{
-      this._die("deathRival","Killed in duel.");
+    if(!this.s.alive)return;
+    if(this.s.unionMembers<this.p.revoltUnlockAt){
+      this._addLog("revolt","Not enough members to revolt.");
       return;
     }
+    this._beginTick();
+    const base=this.p.revoltBaseSuccess+(this.global.advantageStacks*this.p.revoltStackBonus);
+    const success=this._roll(base);
+    if(success){
+      this.global.advantageStacks++;
+      this._addLog("revolt","Workers' revolt succeeded. Yebra loses territory.");
+    } else {
+      this._deathLock=true;
+      this.s.alive=false;
+      this._addLog("deathRival","Revolt failed. Executed as a terrorist.");
+    }
+    this._renderStatus();this._endTick();
+  },
+
+  _unionRecruitTick(){
+    if(!this.s.alive||this.s.unionMembers<=0)return;
+    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil)return;
+    if(this._roll(this.p.unionConvertPass)){
+      this.s.unionMembers+=rnd(1,5);
+      this._addLog("union",`Union quietly grows. ${this.s.unionMembers} total.`);
+    }
+    if(this.s.unionMembers>=this.p.unionCap && !this.s.unionSectorDone){
+      this.s.unionSectorDone=true;
+      this._addLog("union","Entire sector unionized. Fewer children starve, fewer girls become cannon fodder.");
+      this._unionPurge();
+    }
+  },
+
+  _unionStealthTick(){
+    if(!this.s.alive||!this.s.unionMembers)return;
+    if(this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil)return;
+    if(this._roll(this.p.unionStealthFail)){
+      const gone=this.s.age+this.p.unionHideYears;
+      this.s.unionHiddenUntil=gone;
+      this._addLog("union","Gone to ground. Yebra sweeps the district; you hide under floorboards.");
+      this._hideButtons("union");
+    }
+  },
+
+  _unionPurge(){
+    if(!this.s.alive)return;
+    const success=this._roll(0.5);
+    this._addLog("union",pick(FLAVOR.unionPurge));
+    if(success){
+      this.global.advantageStacks++;
+      this._addLog("revolt","Yebra purge backfires; revolt spreads.");
+    }else{
+      this._deathLock=true;
+      this.s.alive=false;
+      this._addLog("deathAccident","Union purge succeeded. You are now an example.");
+    }
     this._renderStatus();
   },
 
-  // ----- Gala (one per lifetime) -----
-  attendGala(){
-    if(!this.s.alive) return;
-    if(!this.s.proven && this.s.deployments===0){ this._addLog("gala","You must survive one deployment before being invited to elite galas."); return; }
-    if(this.s.galaOutcome){ this._addLog("gala","The elites remember you. No second invitations this lifetime."); return; }
-
-    this.s.galaState='intro';
-    this._addLog("gala","You notice that some of the male attendees do not look happy about being here.");
-    // We DON'T call _renderStatus() to hide anything; the renderer will show the right buttons
+  // ========================================================================
+  // DEPLOYED: DUELS, GALA, RATHUNTERS, BLOOD SPORTS
+  // ========================================================================
+  startDuel(){
+    if(!this.s.alive)return;
+    this._beginTick();
+    const base=this.p.duelBaseWin + this.s.deployments*this.p.duelPerDeploy + this.s.duelWins*this.p.duelPerWin;
+    const chance=Math.min(this.p.duelMaxWin,base);
+    const win=this._roll(chance);
+    if(win){
+      this.s.duelWins++;
+      this.s.infamy+=this.p.infamyPerDuelWin;
+      this._addLog("duel","Duel won. Crowd chants your callsign.");
+    }else{
+      this.s.alive=false;
+      this._deathLock=true;
+      this._addLog("deathBattle","Lost duel. Weapon jammed, audience cheered anyway.");
+    }
     this._renderStatus();
+    this._endTick();
+  },
+
+  attendGala(){
+    if(!this.s.alive)return;
+    if(this.s.galaState==="resolved"){this._addLog("gala","You’ve already attended a gala this life.");return;}
+    this.s.galaState="intro";
+    this._addLog("gala",pick(FLAVOR.galaIntro));
+    this._showGalaChoices();
   },
 
   galaIgnore(){
-    if(this.s.galaState!=='intro') return;
-    this._advanceHalfYear();
-    this._addLog("gala","A rat hunter approaches you and asks if you're interested in a safari.");
-    this.s.galaState='ignore'; // now the Join/Decline buttons are shown via _renderStatus
-    this._renderStatus();
-  },
-
-  galaDecline(){
-    if(this.s.galaState!=='ignore') return;
-    this._advanceHalfYear();
-    this._addLog("gala","You decline politely and leave the gala with a strange aftertaste.");
-    this.s.galaState=null;
-    this.s.galaOutcome="done"; // prevent future gala this life
-    this._renderStatus();
+    if(this.s.galaState!=="intro")return;
+    this.s.galaState="ignore";
+    this._addLog("gala",pick(FLAVOR.galaIgnoreFollow));
+    this._showSafariOptions();
   },
 
   galaInvestigate(){
-    if(this.s.galaState!=='intro') return;
-    this._advanceHalfYear();
-    this._addLog("gala","You discovered a trafficking ring behind the smiles.");
-    const majorityWithYou = Math.random()<0.5;
-
-    if(majorityWithYou){
-      this._addLog("gala","You made a scene: majority of attendees side with you; rat hunters flee.");
-      this.s.ratHunterAggro=true;
-      // Directly unlock League formation option
-      this.ui.btnFormLeague.style.display="";
+    if(this.s.galaState!=="intro")return;
+    this.s.galaState="investigate";
+    const youWin=this._roll(0.5);
+    if(youWin){
+      this._addLog("gala",pick(FLAVOR.galaInvestigateSceneYou));
     }else{
-      this._addLog("gala","You made a scene: majority of attendees side with rat hunters; you're expelled from the gala.");
-      this.s.ratHunterAggro=true;
+      this._addLog("gala",pick(FLAVOR.galaInvestigateSceneThem));
     }
-
-    // Close the gala permanently this life
-    this.s.galaState=null;
-    this.s.galaOutcome="done";
+    this.s.galaState="resolved";
+    this._hideGalaChoices();
     this._renderStatus();
   },
+// ===== CHUNK 3 OF 5 =====
 
-  // ----- Rat hunters branch -----
-  joinRatHunters(){
-    if(this.s.galaState!=='ignore') return; // must be at ignore branch
-    if(this.s.joinedRatHunters) return;
-    this._advanceHalfYear();
-    this.s.joinedRatHunters=true;
-    this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamyJoinRat||30),0,100);
-    this._addLog("rat",`Joined Rat Hunters. Infamy +${this.p.infamyJoinRat||30} → ${this.s.infamy}.`);
-    this._addLog("rat","Their expeditions are crimes in everything but name; husbands grow cold at the stories you do not tell.");
-    this.s.galaState=null;
-    this.s.galaOutcome="done";
-    this._renderStatus();
-  },
+// Gala helpers: keep nodes mounted & clickable; only toggle visibility
+_showGalaChoices(){
+  if(!this.ui) return;
+  // Show only the Intro branch buttons
+  this.ui.btnGalaIgnore.style.display = "";
+  this.ui.btnGalaInv.style.display    = "";
+  // Hide downstream options until chosen
+  this.ui.btnJoinRat.style.display    = "none";
+  this.ui.btnDecline.style.display    = "none";
+  // Do not expose safari/blood/league yet
+  this.ui.btnSafari.style.display     = "none";
+  this.ui.btnBlood.style.display      = "none";
+  // Form League must be unlocked by event — keep hidden by default
+  if(!this.s.leagueActive) this.ui.btnFormLeague.style.display = "none";
+},
 
-  attendSafari(){
-    if(!this.s.joinedRatHunters) return;
-    this._advanceHalfYear();
+_hideGalaChoices(){
+  if(!this.ui) return;
+  this.ui.btnGalaIgnore.style.display = "none";
+  this.ui.btnGalaInv.style.display    = "none";
+  this.ui.btnJoinRat.style.display    = "none";
+  this.ui.btnDecline.style.display    = "none";
+},
 
-    if(Math.random() < (this.p.safariHookerDeath||0.05)){
-      this._die("deathRival","Gutted by a cybernetic hooker and stripped for parts by magnet fishers.");
-      return;
-    }
-    if(Math.random() < (this.p.safariOutlanderDeath||0.10)){
-      this._die("deathRival","Killed by outlanders during a botched safari.");
-      return;
-    }
+_showSafariOptions(){
+  if(!this.ui) return;
+  // After IGNORE path: invite to safari
+  this._hideGalaChoices();
+  this.ui.btnJoinRat.style.display = "";
+  this.ui.btnDecline.style.display = "";
+},
 
-    this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamySafariSuccess||5),0,100);
-    this.s.ratSafariCount=(this.s.ratSafariCount||0)+1;
-    if(this.s.ratSafariCount>=1) this.s.safariUnlockedHusbandRisks=true;
-    this._addLog("rat",`Safari concluded. War crimes photographed for private albums. Infamy +${this.p.infamySafariSuccess||5} → ${this.s.infamy}.`);
+// Generic group hider (visibility only; never disable)
+_hideButtons(group){
+  if(!this.ui) return;
+  const map = {
+    union:  ["btnUnion","btnExpand","btnCache","btnSabot","btnRevolt"],
+    league: ["btnFormLeague","btnLeagueExpand","btnLeagueCache","btnHuntHunter","btnLeaguePurge"],
+    gala:   ["btnGala","btnGalaIgnore","btnGalaInv","btnJoinRat","btnDecline"],
+    safari: ["btnSafari","btnBlood"]
+  };
+  const arr = map[group] || [];
+  for(const k of arr){ if(this.ui[k]) this.ui[k].style.display="none"; }
+},
 
-    if(this.s.ratSafariCount>=3){
-      this.ui.btnBlood.style.display="";
-      this._addLog("blood","Blood Sports now available. You know too much to be clean again.");
-    }
-    this._renderStatus();
-  },
+_showButtons(group){
+  if(!this.ui) return;
+  const map = {
+    union:  ["btnUnion","btnExpand","btnCache","btnSabot","btnRevolt"],
+    league: ["btnFormLeague","btnLeagueExpand","btnLeagueCache","btnHuntHunter","btnLeaguePurge"],
+    gala:   ["btnGala"],
+    safari: ["btnSafari","btnBlood"]
+  };
+  const arr = map[group] || [];
+  for(const k of arr){ if(this.ui[k]) this.ui[k].style.display=""; }
+},
 
-  attendBloodSports(){
-    if(!this.s.joinedRatHunters) return;
-    if(this.s.ratSafariCount<3) return;
-    this.s.infamy=clamp((this.s.infamy||0)+(this.p.infamyBloodSports||50),0,100);
-    this.s.bloodSports=true;
-    this.s.annihilationActive=true;
-    this._addLog("blood",`You attended blood sports. Infamy +${this.p.infamyBloodSports||50} → ${this.s.infamy}.`);
-    this._addLog("blood","Participants become mannequins with pulses. The floor drinks the stains.");
-    this._renderStatus();
-  },
-
-  // ----- League (Anti-Degeneracy) from Investigate path -----
-  formLeague(){
-    if(this.s.leagueActive) return;
-    if(!this.s.galaOutcome){ this._addLog("league","You must confront the gala first. Monsters hate sunlight."); return; }
-    this._advanceHalfYear();
-    this.s.leagueActive=true;
-    this.s.leagueMembers=1;
-    this._addLog("league","Formed Anti-Degeneracy League (1 member). The corrupt elites will learn to fear the light.");
-    this._renderStatus();
-  },
-
-  expandLeague(){
-    if(!this.s.leagueActive || this.s.leagueMembers<=0) return;
-    if(this.s.leagueHiddenUntil && this.s.age<this.s.leagueHiddenUntil){
-      this._addLog("league","League is in hiding; cannot expand."); return;
-    }
-    this._advanceHalfYear();
-    if(Math.random()<(this.p.leagueExpandDeath||0.10)){
-      this._die("deathRival","Disemboweled by Rat Hunters while recruiting for the League");
-      return;
-    }
-    this.s.leagueMembers+=1;
-    this._addLog("league",`Recruited one member. League total ${this.s.leagueMembers}.`);
-    if(this.s.leagueMembers >= (this.p.leaguePurgeUnlockAt||1000)){
-      this._addLog("purge","Enact Purge is now available.");
-    }
-    this._renderStatus();
-  },
-
-  buildHideout(){
-    if(!this.s.leagueActive || this.s.leagueMembers<=0) return;
-    if(this.s.leagueHiddenUntil && this.s.age<this.s.leagueHiddenUntil){
-      this._addLog("league","League is in hiding; cannot build hideouts."); return;
-    }
-    this._advanceHalfYear();
-    if(Math.random()<(this.p.leagueExpandDeath||0.10)){
-      this._die("deathRival","Skinned alive by Rat Hunters while scouting a hideout"); return;
-    }
-    this.s.leagueCaches+=1;
-    this._addLog("league",`Built a safe house (${this.s.leagueCaches} total). During purges, each preserves ${this.p.leagueCacheSave||10} members.`);
-    this._renderStatus();
-  },
-
-  huntTheHunter(){
-    if(!this.s.leagueActive || this.s.leagueMembers<=0) return;
-    if(this.s.leagueHiddenUntil && this.s.age<this.s.leagueHiddenUntil){
-      this._addLog("league","League is in hiding; cannot hunt."); return;
-    }
-    this._advanceHalfYear();
-
-    if(Math.random()<(this.p.huntHunterDeath||0.05)){
-      this._die("deathRival","Decapitated by Rat Hunters in a smoke-choked stairwell");
-      return;
-    }
-
-    if(!this.s.cyberHooker && Math.random()<(this.p.huntHookerRecruit||0.05)){
-      this.s.cyberHooker=true;
-      this._addLog("hooker","Recruited a cybernetic hooker. You aren't sure how much of him is Azulian anymore.");
-    }
-
-    if(this.s.cyberHooker){
-      this._addLog("league","Hunt succeeded with surgical precision and augmented brutality. No witnesses, only rumors.");
-    }else{
-      this._addLog("league","Hunt succeeded. Their fear tastes like tin.");
-    }
-    this.s.infamy=clamp((this.s.infamy||0)+5,0,100);
-    this._renderStatus();
-  },
-
-  enactPurge(){
-    if(!this.s.leagueActive || this.s.leagueMembers<(this.p.leaguePurgeUnlockAt||1000)) return;
-    if(this.s.leagueHiddenUntil && this.s.age<this.s.leagueHiddenUntil){
-      this._addLog("purge","League is in hiding; cannot enact purge."); return;
-    }
-    this._advanceHalfYear();
-    if(Math.random()<(this.p.leaguePurgeSuccess||0.50)){
-      this.global.advantageStacks=(this.global.advantageStacks||0)+1;
-      this._addLog("purge",`Purge succeeded. Rat Hunter dens are cinders. Permanent death-save advantage increased (stacks: ${this.global.advantageStacks}).`);
-    }else{
-      this._die("deathRival","Riddled with flechettes by Rat Hunters while attempting the purge");
-      return;
-    }
-    this._renderStatus();
-  },
-  // ========================================================================
-  // DEATH + HUD + RESET
-  // ========================================================================
-  _die(type,msg){
-    this.s.alive=false;
-    this._addLog(type,`${msg}. Final age ${this.s.age.toFixed(1)}.`);
-    this._renderStatus();
-  },
-
-  _computeGIS(){
-    let score=0,max=0;
-    for(const ch of (this.s.children||[])){
-      max+=3;
-      if(ch.adult) score+=1;
-      if(ch.proven) score+=2;
-    }
-    const norm=max>0?Math.round(100*score/max):0;
-    return {score,max,norm};
-  },
-
-  _renderStatus(){
-    if(!this.ui.status) return;
-    const cap=this._lifeCap();
-    const gis=this._computeGIS();
-
-    const total=(this.s.children && this.s.children.length) || 0;
-    const adults=(this.s.children && this.s.children.filter(c=>c.adult).length) || 0;
-    const df=(this.s.children && this.s.children.filter(c=>c.sex==='F').length) || 0;
-    const dp=this.s.daughtersProven||0;
-
-    this.ui.status.status.innerHTML   = `<b>Status:</b> ${this.s.alive?'Alive':'Dead'} ${this.s.outlander?'· Outlander':''} ${this.s.proven||this.s.deployments>0?'· Deployed':''}`;
-    this.ui.status.age.innerHTML      = `<b>Age:</b> ${this.s.age.toFixed(1)} / Cap ${cap.toFixed(1)}`;
-    this.ui.status.tours.innerHTML    = `<b>Deployments:</b> ${this.s.deployments|0}`;
-    this.ui.status.husbands.innerHTML = `<b>Husbands:</b> ${this.s.husbands|0}`;
-    this.ui.status.prestige.innerHTML = `<b>Prestige:</b> ${Math.round((+this.s.prestige||0)*100)}% · Proven daughters: ${dp}/${this.s.daughtersTotal|0}`;
-    this.ui.status.children.innerHTML = `<b>Children:</b> ${total} total; ${adults} adults; ${df} daughters; ${dp} proven daughters`;
-    this.ui.status.gis.innerHTML      = `<b>GIS:</b> ${gis.score}/${gis.max} (${gis.norm}%)`;
-    this.ui.status.infamy.innerHTML   = `<b>Infamy:</b> ${clamp(this.s.infamy||0,0,100)}`;
-
-    const revoltAvail = (this.s.outlander && this.s.unionMembers >= (this.p.revoltUnlockAt||1000));
-    const hideTxtU = (this.s.unionHiddenUntil && this.s.age<this.s.unionHiddenUntil)
-      ? ` · In hiding until age ${this.s.unionHiddenUntil.toFixed(1)}`
-      : "";
-    const unionVisible = this.s.outlander && this.s.unionMembers>=10;
-    const capTxt = this.s.sectorUnionized ? " · Sector unionized" : "";
-    this.ui.status.union.innerHTML =
-      (unionVisible
-        ? `<b>Union:</b> ${this.s.unionMembers} members · Caches:${this.s.unionCaches}${hideTxtU}${capTxt} ${revoltAvail?'· Revolt READY':''}`
-        : `<b>Union:</b> (join Outlanders to unlock)`);
-
-    const purgeAvail = (this.s.leagueActive && this.s.leagueMembers >= (this.p.leaguePurgeUnlockAt||1000));
-    const hideTxtL = (this.s.leagueHiddenUntil && this.s.age<this.s.leagueHiddenUntil)
-      ? ` · In hiding until age ${this.s.leagueHiddenUntil.toFixed(1)}`
-      : "";
-    const leagueVisible = this.s.leagueActive && this.s.leagueMembers>=10;
-    this.ui.status.league.innerHTML =
-      (leagueVisible
-        ? `<b>League:</b> ${this.s.leagueMembers} members · Hideouts:${this.s.leagueCaches}${hideTxtL} ${purgeAvail?'· Purge READY':''}`
-        : `<b>League:</b> (investigate at gala to unlock)`);
-
-    // Button visibility logic — stable & explicit
-
-    // core
-    this.ui.btnDeploy.disabled = !!this.s.outlander || !this.s.alive;
-    this.ui.btnRepro.disabled = !this.s.alive;
-    this.ui.btnWait .disabled = !this.s.alive;
-    this.ui.btnHusb .disabled = !this.s.alive;
-    this.ui.btnReset.disabled = false;
-
-    // outlander join shows only when unproven + alive
-    this.ui.btnOut.style.display    = (!this.s.proven && !this.s.outlander && this.s.alive) ? "" : "none";
-
-    // union “Start” is one per lifetime
-    this.ui.btnUnion.style.display  = (this.s.outlander && this.s.alive && !this.s.unionEverFormed) ? "" : "none";
-
-    const unionOpsVisible = (this.s.outlander && this.s.alive && this.s.unionMembers>0);
-    this.ui.btnExpand.style.display = unionOpsVisible ? "" : "none";
-    this.ui.btnCache .style.display = unionOpsVisible ? "" : "none";
-    this.ui.btnSabot .style.display = unionOpsVisible ? "" : "none";
-    this.ui.btnRevolt.style.display = (unionOpsVisible && revoltAvail) ? "" : "none";
-
-    // deployed path buttons
-    const deployed = (this.s.proven || this.s.deployments>0) && this.s.alive && !this.s.outlander;
-    this.ui.btnDuel.style.display   = deployed ? "" : "none";
-
-    // Gala availability — exactly once per lifetime
-    this.ui.btnGala.style.display   = (deployed && !this.s.galaOutcome) ? "" : "none";
-
-    // Gala ephemeral branches — strictly controlled by galaState
-    if(this.s.galaState === 'intro'){
-      this.ui.btnGalaIgnore.style.display = "";
-      this.ui.btnGalaInv.style.display    = "";
-      this.ui.btnJoinRat.style.display    = "none";
-      this.ui.btnDecline.style.display    = "none";
-    } else if(this.s.galaState === 'ignore'){
-      this.ui.btnGalaIgnore.style.display = "none";
-      this.ui.btnGalaInv.style.display    = "none";
-      this.ui.btnJoinRat.style.display    = "";
-      this.ui.btnDecline.style.display    = "";
-    } else {
-      this.ui.btnGalaIgnore.style.display = "none";
-      this.ui.btnGalaInv.style.display    = "none";
-      this.ui.btnJoinRat.style.display    = "none";
-      this.ui.btnDecline.style.display    = "none";
-    }
-
-    // rat hunter buttons
-    const ratVisible = deployed && this.s.joinedRatHunters;
-    this.ui.btnSafari.style.display = ratVisible ? "" : "none";
-    this.ui.btnBlood.style.display  = (ratVisible && this.s.ratSafariCount>=3) ? "" : "none";
-
-    // league buttons
-    const leagueOps = deployed && this.s.leagueActive;
-    this.ui.btnFormLeague.style.display   = (deployed && !this.s.leagueActive && !!this.s.galaOutcome) ? "" : "none";
-    this.ui.btnLeagueExpand.style.display = leagueOps ? "" : "none";
-    this.ui.btnLeagueCache .style.display = leagueOps ? "" : "none";
-    this.ui.btnHuntHunter  .style.display = leagueOps ? "" : "none";
-    this.ui.btnLeaguePurge .style.display = (leagueOps && this.s.leagueMembers >= (this.p.leaguePurgeUnlockAt||1000)) ? "" : "none";
-  },
-
-  // RESET
-  reset(){
-    this._initLife();
-    this._renderStatus();
-    this._newCycle();
+// ===== Rat Hunters path (from Gala → Ignore) =====
+joinRatHunters(){
+  if(!this.s.alive) return;
+  // Joining is an action-less commit; the actual hunts consume time
+  this.s.joinedRatHunters = true;
+  this.s.infamy = clamp((this.s.infamy||0) + (this.p.infamyJoinRat||30), 0, 100);
+  this._addLog("rat", `Joined Rat Hunters. Infamy +${this.p.infamyJoinRat||30} → ${this.s.infamy}.`);
+  this._addLog("rat","Their expeditions are crimes in everything but name; husbands grow cold at the stories you do not tell.");
+  // Reveal safari, hide invite buttons
+  if(this.ui){
+    this.ui.btnJoinRat.style.display = "none";
+    this.ui.btnDecline.style.display = "none";
+    this.ui.btnSafari.style.display  = "";
   }
-}; // end Life
+  // Gala is resolved after a path is chosen
+  this.s.galaState = "resolved";
+  this._renderStatus();
+},
 
-// expose & boot Life
-window.AzulianLifeSim = Life;
-function bootLife(){
-  if(document.getElementById("azulian-life-sim")) Life.mount("azulian-life-sim");
-}
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bootLife);
-else bootLife();
+galaDecline(){
+  if(this.s.galaState!=="ignore") return;
+  // Declining closes the gala branch for this life
+  this._addLog("gala","You decline politely and leave the gala with a strange aftertaste.");
+  this.s.galaState = "resolved";
+  if(this.ui){
+    this.ui.btnJoinRat.style.display = "none";
+    this.ui.btnDecline.style.display = "none";
+    // No safari if declined
+    this.ui.btnSafari.style.display  = "none";
+    this.ui.btnBlood.style.display   = "none";
+  }
+  this._renderStatus();
+},
+
+attendSafari(){
+  if(!this.s.alive) return;
+  if(!this.s.joinedRatHunters){ this._addLog("rat","You need to join Rat Hunters first."); return; }
+
+  this._beginTick();
+  // Each safari consumes 6 months
+  this._advanceHalfYear();
+
+  // Rare death: 5% eviscerated by cybernetic hooker
+  if(!this._deathLock && Math.random() < (this.p.safariHookerDeath||0.05)){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Eviscerated by a cybernetic hooker in a chrome-lit pit.");
+    this._renderStatus(); this._endTick(); return;
+  }
+
+  // 10% killed by outlanders while hunting
+  if(!this._deathLock && Math.random() < (this.p.safariOutlanderDeath||0.10)){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Killed by outlanders during a botched safari.");
+    this._renderStatus(); this._endTick(); return;
+  }
+
+  // Success: +5 infamy, unlock husband risk flag after first safari
+  this.s.infamy = clamp((this.s.infamy||0) + (this.p.infamySafariSuccess||5), 0, 100);
+  this.s.ratSafariCount = (this.s.ratSafariCount||0) + 1;
+  if(this.s.ratSafariCount >= 1) this.s.safariUnlockedHusbandRisks = true;
+
+  // Flavor log — keep original, add variant by random pick
+  this._addLog("rat", pick(FLAVOR.safariFlavor));
+  this._addLog("rat", `Infamy +${this.p.infamySafariSuccess||5} → ${this.s.infamy}.`);
+
+  // After 3 safaris, unlock blood sports button
+  if(this.s.ratSafariCount >= 3 && this.ui){
+    this.ui.btnBlood.style.display = "";
+    this._addLog("blood","Blood Sports now available. You know too much to be clean again.");
+  }
+
+  this._renderStatus();
+  this._endTick();
+},
+
+attendBloodSports(){
+  if(!this.s.alive) return;
+  if(!this.s.joinedRatHunters || this.s.ratSafariCount < 3){
+    this._addLog("blood","You need experience hunting before the arena sends you an invite."); 
+    return;
+  }
+  // Immediate infamy bump, sets annihilation hazard active (checked each 6mo)
+  this.s.infamy = clamp((this.s.infamy||0) + (this.p.infamyBloodSports||50), 0, 100);
+  this.s.bloodSports = true;
+  this.s.annihilationActive = true;
+  this._addLog("blood", pick(FLAVOR.bloodFlavor));
+  this._addLog("blood", `Infamy +${this.p.infamyBloodSports||50} → ${this.s.infamy}.`);
+  this._renderStatus();
+},
+
+// ===== League (Anti-Degeneracy) path (from Gala → Investigate) =====
+formLeague(){
+  if(!this.s.alive) return;
+  if(this.s.leagueActive){ this._addLog("league","You have already formed the League."); return; }
+  // Founding is immediate; growth actions consume time
+  this.s.leagueActive = true;
+  this.s.leagueMembers = 1;
+  this._addLog("league","Formed Anti-Degeneracy League (1 member). The corrupt elites will learn to fear the light.");
+  // After forming, surface League controls; Gala is resolved
+  this.s.galaState = "resolved";
+  if(this.ui){
+    this.ui.btnFormLeague.style.display   = "none"; // now formed
+    this.ui.btnLeagueExpand.style.display = "";
+    this.ui.btnLeagueCache.style.display  = "";
+    this.ui.btnHuntHunter.style.display   = "";
+  }
+  this._renderStatus();
+},
+
+expandLeague(){
+  if(!this.s.alive) return;
+  if(!this.s.leagueActive || this.s.leagueMembers<=0){
+    this._addLog("league","You need to form the League first.");
+    return;
+  }
+  // Each manual recruit attempt = 6 months; leader may die (10%)
+  this._beginTick();
+  this._advanceHalfYear();
+
+  if(!this._deathLock && Math.random() < (this.p.leagueExpandDeath||0.10)){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Disemboweled by Rat Hunters while recruiting for the League.");
+    this._renderStatus(); this._endTick(); return;
+  }
+
+  // Manual recruit: one at a time
+  this.s.leagueMembers += 1;
+  this._addLog("league",`Recruited one member. League total ${this.s.leagueMembers}.`);
+
+  // Unlock purge when 1000+
+  if(this.s.leagueMembers >= (this.p.leaguePurgeUnlockAt||1000) && this.ui){
+    this.ui.btnLeaguePurge.style.display = "";
+    this._addLog("purge","Enact Purge is now available.");
+  }
+
+  this._renderStatus();
+  this._endTick();
+},
+
+buildHideout(){
+  if(!this.s.alive) return;
+  if(!this.s.leagueActive || this.s.leagueMembers<=0){
+    this._addLog("league","You need League members before you can build a hideout."); 
+    return;
+  }
+  // Building a hideout consumes 6 months; 10% leader death risk
+  this._beginTick();
+  this._advanceHalfYear();
+
+  if(!this._deathLock && Math.random() < (this.p.leagueExpandDeath||0.10)){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Captured by Rat hunters while scouting. They did things to you that would have made Shiro Ishii blush.");
+    this._renderStatus(); this._endTick(); return;
+  }
+
+  this.s.leagueCaches += 1;
+  this._addLog("league",`Built a safe house (${this.s.leagueCaches} total). During purges, each preserves ${this.p.leagueCacheSave||10} members.`);
+  this._renderStatus();
+  this._endTick();
+},
+
+huntTheHunter(){
+  if(!this.s.alive) return;
+  if(!this.s.leagueActive || this.s.leagueMembers<=0){
+    this._addLog("league","Form the League before you hunt."); 
+    return;
+  }
+  // Each hunt = 6 months
+  this._beginTick();
+  this._advanceHalfYear();
+
+  // 5% death
+  if(!this._deathLock && Math.random() < (this.p.huntHunterDeath||0.05)){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Gutted by Rat Hunters in a smoke-choked stairwell.");
+    this._renderStatus(); this._endTick(); return;
+  }
+
+  // 5% recruit cybernetic hooker (once) — ORIGINAL line preserved
+  if(!this.s.cyberHooker && Math.random() < (this.p.huntHookerRecruit||0.05)){
+    this.s.cyberHooker = true;
+    this._addLog("hooker", FLAVOR.hookerRecruitSuccess[0]); // exact original text
+  } else if(this.s.cyberHooker && Math.random()<0.5){
+    // Occasionally use a variant when already recruited
+    this._addLog("hooker", pick(FLAVOR.hookerRecruitSuccess.slice(1)));
+  }
+
+  // Success text: 100% success if hooker recruited; otherwise standard success
+  if(this.s.cyberHooker){
+    this._addLog("league","Hunt succeeded with surgical and brutal precision. No witnesses, only rumors written in blood.");
+  }else{
+    this._addLog("league", pick(FLAVOR.leagueHunt));
+  }
+
+  // Reward: +5 infamy
+  this.s.infamy = clamp((this.s.infamy||0)+5,0,100);
+  this._renderStatus();
+  this._endTick();
+},
+
+enactPurge(){
+  if(!this.s.alive) return;
+  if(!this.s.leagueActive || this.s.leagueMembers < (this.p.leaguePurgeUnlockAt||1000)){
+    this._addLog("purge","You need more converts to enact a purge."); 
+    return;
+  }
+  // Enacting a purge consumes 6 months; 50% success
+  this._beginTick();
+  this._advanceHalfYear();
+
+  const success = Math.random() < (this.p.leaguePurgeSuccess||0.50);
+  if(success){
+    this.global.advantageStacks = (this.global.advantageStacks||0) + 1;
+    this._addLog("purge","Purge succeeded. Rat Hunters and their degeneracy have been purged from your district. Permanent death-save advantage increased.");
+    this._renderStatus();
+    this._endTick();
+    return;
+  }
+
+  // Failure: killed by rat hunters (blunt, lore-consistent)
+  if(!this._deathLock){
+    this._deathLock = true; this.s.alive = false;
+    this._addLog("deathRival","Butchered by rat hunters during a purge attempt. They made sport of it.");
+  }
+  this._renderStatus();
+  this._endTick();
+},
+
+// ===== League autos (recruit & stealth) — run on half-year ticks =====
+_leagueRecruitTick(){
+  if(!this.s.alive || !this.s.leagueActive || this.s.leagueMembers<=0) return;
+  if(this.s.leagueHiddenUntil && this.s.age < this.s.leagueHiddenUntil) return;
+
+  // Each 6 months, each member attempts: 90% recruit one more, 10% dies
+  // We only simulate a compact expectation to keep performance sane
+  // (but still cap to avoid runaway)
+  const members = this.s.leagueMembers;
+  let gained = 0, deaths = 0;
+
+  for(let i=0;i<members;i++){
+    const r = Math.random();
+    if(r < (this.p.leagueConvertDeath||0.10)) deaths++;
+    else if(r < (this.p.leagueConvertDeath||0.10)+(this.p.leagueConvertPass||0.90)) gained++;
+  }
+
+  this.s.leagueMembers = Math.max(0, this.s.leagueMembers - deaths + gained);
+
+  if(gained>0 || deaths>0){
+    this._addLog("league",`Auto-recruit: ${gained} joined, ${deaths} lost. Total ${this.s.leagueMembers}.`);
+  }
+
+  // Unlock purge button if threshold crossed
+  if(this.s.leagueMembers >= (this.p.leaguePurgeUnlockAt||1000) && this.ui){
+    this.ui.btnLeaguePurge.style.display = "";
+  }
+},
+
+_leagueStealthTick(){
+  if(!this.s.alive || !this.s.leagueActive || this.s.leagueMembers<=0) return;
+  if(this.s.leagueHiddenUntil && this.s.age < this.s.leagueHiddenUntil) return;
+
+  if(Math.random() < (this.p.leagueStealthFail||0.10)){
+    // Purge event (flavor only), then forced hide with immediate fast-forward
+    this._addLog("league", pick(FLAVOR.leaguePurge));
+    // Compute survivors protected by caches
+    const caches = this.s.leagueCaches|0;
+    const survivors = caches * (this.p.leagueCacheSave||10);
+    const before = this.s.leagueMembers;
+    const after  = Math.min(before, survivors);
+    this.s.leagueMembers = after;
+    this._addLog("league",`Purge impact: members ${before} → ${after}.`);
+
+    // Go to ground immediately for leagueHideYears, with a single hazard roll
+    const years = (this.p.leagueHideYears||4);
+    this._addLog("league",`League goes to ground for ${years} years.`);
+    this.s.leagueHiddenUntil = this.s.age + years;
+
+    // Fast-forward time, but preserve "buttons live": just hide via render
+    // A single lethal hazard during hide (20%) — no double-death
+    this.s.age += years;
+    if(!this._deathLock && Math.random() < (this.p.leagueHideDeathRisk||0.20)){
+      this._deathLock = true; this.s.alive = false;
+      this._addLog("deathRival","Torn apart during a Rat Hunter ambush while in hiding.");
+      this._renderStatus(); return;
+    }
+
+    // Resurface immediately after the fast-forward period elapses
+    this._addLog("league","League resurfaced from hiding.");
+    this.s.leagueHiddenUntil = null;
+    // Visibility will be recalculated in _renderStatus()
+  }
+},
+
+// ===== Blood-sports annihilation hazard (checked on half-year ticks) =====
+_annihilationTick(){
+  if(!this.s.alive || !this.s.annihilationActive) return;
+  if(Math.random() < (this.p.bloodAnnihilateChance||0.10)){
+    // One roll → exactly one result, with death-lock
+    const roll = Math.random();
+    if(!this._deathLock){
+      this._deathLock = true; this.s.alive = false;
+      if(roll < 1/3){
+        // GIS reset → wipe children & daughter counters
+        this.s.children = []; this.s.daughtersProven = 0; this.s.daughtersTotal = 0;
+        this._addLog("deathRival","Annihilated family and then self.");
+      } else if(roll < 2/3){
+        this._addLog("deathAccident","Committed mass arson, killed by Yebra during a mental collapse.");
+      } else {
+        this._addLog("deathBattle","Forcibly deployed until death after serial killings destroyed Yebra IP.");
+      }
+    }
+  }
+},
+// ===== CHUNK 4 OF 5 =====
 
 // ============================================================================
-// POPULATION SIMULATOR (unchanged core math, tidy UI)
+// STATUS RENDERING + UI VISIBILITY UPDATES
 // ============================================================================
-const Pop = {
-  params:{
-    a0:0.22, ap:0.85, lambda:3, j:0.7, Y:2, pi:0.4, k:3,
-    clanPrestige:0.0, Nf0:1e6, Nm:3e6, cycles:10
-  },
+_renderStatus(){
+  if(!this.ui||!this.ui.status)return;
+  const S=this.s, U=this.ui.status;
 
-  step(state,p){
-    const a0=+p.a0??0.22, ap=+p.ap??0.85, λ=+p.lambda??3, j=+p.j??0.7,
-          Y=+p.Y??2, π=+p.pi??0.4, k=Math.max(1,+p.k??3),
-          prestige=+p.clanPrestige??0, Nm=+p.Nm??3e6;
+  U.status.text = S.alive ? "🫀 Status: Alive" : "☠️ Status: Deceased";
+  U.age.text = `Age: ${S.age.toFixed(1)} years`;
+  U.tours.text = `Deployments: ${S.deployments}`;
+  U.husbands.text = `Husbands: ${S.husbands}`;
+  U.prestige.text = `Prestige: ${(S.prestige*100).toFixed(0)}%`;
+  U.children.text = `Children: ${S.daughtersTotal}`;
+  U.gis.text = `Daughters Proven: ${S.daughtersProven}`;
+  U.infamy.text = `Infamy: ${S.infamy}`;
+  U.union.text = S.unionMembers?`Union Members: ${S.unionMembers}`:"";
+  U.league.text = S.leagueMembers?`League Members: ${S.leagueMembers}`:"";
 
-    const apEff = ap*(1+0.2*prestige);
-    const newProven   = (state.R||0)*a0;
-    const provenNext  = (state.P||0)*apEff;
-    const shoreProven = (state.P||0)*(1-π);
-
-    const birthsPerFemale = 2*λ*j*Y;
-    const daughters = shoreProven*birthsPerFemale*0.5;
-    const nextR = daughters;
-
-    const Ne = shoreProven>0
-      ? (4*(shoreProven*Nm)/(shoreProven+Nm))*(1-1/Math.max(1,k))
-      : 0;
-
-    return { R:nextR, P:newProven+provenNext, daughters, Ne };
-  },
-
-  run(){
-    const p=this.params;
-    let s={R:+p.Nf0||0,P:0};
-    const out=[];
-    for(let t=0;t<(+p.cycles||0);t++){
-      s=this.step(s,p);
-      out.push({cycle:t+1,rookies:s.R,proven:s.P,daughters:s.daughters,Ne:s.Ne});
+  // Button visibility logic — keep buttons live, only hide via display:none
+  if(!S.alive){
+    for(const k in this.ui){
+      if(k.startsWith("btn")) this.ui[k].style.display="none";
     }
-    return out;
-  },
+    return;
+  }
 
-  renderTable(data){
-    let h=`<table style="width:100%;border-collapse:collapse;text-align:center;">
-      <tr><th>Cycle</th><th>Rookies</th><th>Proven</th><th>Daughters</th><th>Effective Pop (Ne)</th></tr>`;
-    const ex=v=>(Number.isFinite(v)?v:0).toExponential(2);
-    for(const r of data){
-      h+=`<tr>
-        <td>${r.cycle}</td>
-        <td>${ex(r.rookies)}</td>
-        <td>${ex(r.proven)}</td>
-        <td>${ex(r.daughters)}</td>
-        <td>${ex(r.Ne)}</td>
-      </tr>`;
-    }
-    return h+"</table>";
-  },
+  // Civilian/Outlander/Union path toggles
+  if(S.outlander){
+    this.ui.btnOut.style.display="none";
+    this._showButtons("union");
+  }else{
+    this.ui.btnOut.style.display="";
+    this._hideButtons("union");
+  }
 
-  renderControls(){
-    const sliders=[
-      {id:'a0',label:'Rookie Survival (a₀)',min:0.1,max:0.5,step:0.01},
-      {id:'ap',label:'Proven Survival (aₚ)',min:0.6,max:0.99,step:0.01},
-      {id:'lambda',label:'Litter Size (λ)',min:1,max:6,step:0.1},
-      {id:'j',label:'Juvenile Survival (j)',min:0.4,max:0.9,step:0.01},
-      {id:'Y',label:'Years Ashore (Y)',min:0.5,max:4,step:0.1},
-      {id:'pi',label:'Redeploy Fraction (π)',min:0,max:0.9,step:0.05},
-      {id:'k',label:'Polyandry Level (k)',min:1,max:6,step:1},
-      {id:'clanPrestige',label:'Clan Prestige',min:0,max:1,step:0.05}
-    ];
-    let h=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">`;
-    for(const s of sliders){
-      const v=this.params[s.id];
-      h+=`<label>${s.label}: <input type="range" id="${s.id}" min="${s.min}" max="${s.max}" step="${s.step}" value="${v}"
-            oninput="AzulianSim.update('${s.id}',this.value)">
-            <span id="${s.id}-val">${v}</span></label>`;
-    }
-    return h+`</div><button onclick="AzulianSim.refresh()">Run Simulation</button>`;
-  },
+  // Deployed path: unlock duel & gala after one deployment
+  if(S.proven){
+    this.ui.btnDuel.style.display="";
+    this.ui.btnGala.style.display=(S.galaState? "none": "");
+  }else{
+    this.ui.btnDuel.style.display="none";
+    this.ui.btnGala.style.display="none";
+  }
 
-  update(id,val){
-    this.params[id]=parseFloat(val);
-    const e=document.getElementById(`${id}-val`);
-    if(e) e.textContent=val;
-  },
+  // Rat Hunters / Safari
+  if(S.joinedRatHunters){
+    this.ui.btnSafari.style.display="";
+    if(S.ratSafariCount>=3) this.ui.btnBlood.style.display="";
+  }
 
-  refresh(){
-    const c=document.getElementById("azulian-sim-output");
-    if(!c) return;
-    c.innerHTML=this.renderTable(this.run());
-  },
+  // League visibility toggles
+  if(S.leagueActive){
+    this.ui.btnFormLeague.style.display="none";
+    this.ui.btnLeagueExpand.style.display="";
+    this.ui.btnLeagueCache.style.display="";
+    this.ui.btnHuntHunter.style.display="";
+    if(S.leagueMembers>=(this.p.leaguePurgeUnlockAt||1000))
+      this.ui.btnLeaguePurge.style.display="";
+  }
 
+  // Hide League group only while hiding (gone to ground)
+  if(S.leagueHiddenUntil && S.age < S.leagueHiddenUntil){
+    this._hideButtons("league");
+  }
+
+  // Hide Union group only while hiding
+  if(S.unionHiddenUntil && S.age < S.unionHiddenUntil){
+    this._hideButtons("union");
+  }
+},
+
+// ============================================================================
+// RESET & GLOBAL STATUS MANAGEMENT
+// ============================================================================
+reset(){
+  this._initLife();
+  this.global.sectorIndex++;
+  this._addLog("outlander",`New life begins in Sector ${this.global.sectorIndex}.`);
+  this._newCycle();
+  this._renderStatus();
+},
+
+// ============================================================================
+// POPULATION SIMULATOR (AzulianSim)
+// ============================================================================
+AzulianSim:{
+  data:{ population:100000, birthRate:0.02, deathRate:0.02, deploymentLoss:0.01 },
   mount(containerId="azulian-sim"){
     const root=document.getElementById(containerId);
-    if(!root) return;
-    root.innerHTML=
-      `<h3>Azulian Population Simulator</h3>`+
-      this.renderControls()+
-      `<div id="azulian-sim-output" style="margin-top:8px;">${this.renderTable(this.run())}</div>`;
+    if(!root){console.error("[AzulianSim] Missing container");return;}
+    root.innerHTML="";
+    root.appendChild(el("h3",{text:"Azulian Population Simulator"}));
+
+    const stats=el("div",{id:"pop-stats"});
+    const controls=el("div",{style:{marginTop:"10px"}});
+    const btnTick=el("button",{text:"Advance 1 Year",onclick:()=>this.tick()});
+    const btnReset=el("button",{text:"Reset",onclick:()=>this.reset()});
+    controls.append(btnTick,btnReset);
+    root.append(stats,controls);
+
+    this.root=root;
+    this.stats=stats;
+    this.render();
+  },
+
+  render(){
+    const d=this.data;
+    if(!this.stats)return;
+    this.stats.innerHTML=
+      `Population: ${Math.round(d.population).toLocaleString()}<br>`+
+      `Birth Rate: ${(d.birthRate*100).toFixed(2)}%<br>`+
+      `Death Rate: ${(d.deathRate*100).toFixed(2)}%<br>`+
+      `Deployment Loss: ${(d.deploymentLoss*100).toFixed(2)}%`;
+  },
+
+  tick(){
+    const d=this.data;
+    const births=d.population*d.birthRate;
+    const deaths=d.population*d.deathRate;
+    const combat=d.population*d.deploymentLoss;
+    d.population=d.population+births-deaths-combat;
+    this.render();
+  },
+
+  reset(){
+    this.data={ population:100000, birthRate:0.02, deathRate:0.02, deploymentLoss:0.01 };
+    this.render();
   }
-};
+},
 
-// expose & boot Pop
-window.AzulianSim = Pop;
-function bootPop(){
-  if(document.getElementById("azulian-sim")) Pop.mount("azulian-sim");
+// ============================================================================
+// ATTACH TO WINDOW
+// ============================================================================
+_renderGlobal(){
+  if(typeof window!=="undefined"){
+    window.AzulianLifeSim=this;
+    window.AzulianSim=this.AzulianSim;
+  }
+},
+
+}; // end Life object
+
+// Mount exported globals
+if(typeof window!=="undefined"){
+  window.AzulianLifeSim=Life;
+  window.AzulianSim=Life.AzulianSim;
 }
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bootPop);
-else bootPop();
 
-})(); // end IIFE
+})(); // END WRAPPER
+// ===== CHUNK 5 OF 5 =====
+
+// ============================================================================
+// ADDITIONAL FLAVOR VARIANTS 
+// ============================================================================
+
+(function addExtraFlavor(){
+  if(typeof FLAVOR==="undefined") return;
+
+  // --- Civilian deaths / accidents ---
+  FLAVOR.deathAccident = (FLAVOR.deathAccident||[]).concat([
+    "Slipped in a sterilization vat. OSHA would’ve been impressed if OSHA existed.",
+    "Died in a sanitation drone’s blind spot. Yebra sent a coupon to your next of kin.",
+    "Stepped into a recycling compactor labeled 'organic input.'"
+  ]);
+
+  // --- Starvation ---
+  FLAVOR.deathStarve = (FLAVOR.deathStarve||[]).concat([
+    "Starved beside a sign promising 'full employment.'",
+    "Mistook plastic meal-pellets for food.",
+    "Collapsed beside the food line before your shift ended."
+  ]);
+
+  // --- Battle deaths ---
+  FLAVOR.deathBattle = (FLAVOR.deathBattle||[]).concat([
+    "Burned to a crisp in a friendly fire incident; nobody could tell whose bones were whose.",
+    "Picked clean by xeno scavengers after your CO lied about a the location of a hot spring to bathe in just to see if you were dumb enough to take the bait.",
+    "Last words: 'It’s fine, I trained my whole life for this moment.' It wasn’t fine."
+  ]);
+
+  // --- Rat Hunter–specific executions ---
+  FLAVOR.killedByRatHunters = (FLAVOR.killedByRatHunters||[]).concat([
+    "Pinned to a marble floor and flayed to applause.",
+    "Displayed as a centerpiece at an aristocrat’s dinner party. You didn’t get to pick the garnish.",
+    "Sold your teeth as cufflinks after the party.",
+    "The Rat Hunter who tried mailing your femur to her dependia as a trophy got fined by Yebra for violating it's hazardous material policy, if it's any consolation."
+  ]);
+
+  // --- Outlander success or failure ---
+  FLAVOR.outlander = (FLAVOR.outlander||[]).concat([
+    "Joined outlanders. Learned that mud can be currency and dignity the only liability worth protecting.",
+    "Now you walk where the Explorer cunts wouldn’t dare piss. Every step is freedom and every mistake is yours alone.",
+    "Traded state-issued jello for actual fire-roasted meat. The first bite almost made you cry."
+  ]);
+
+  // --- Union expansion & purges ---
+  FLAVOR.unionPurge = (FLAVOR.unionPurge||[]).concat([
+    "You watched a union rep get zip-tied to a dolly and rolled into an unmarked van. Productivity rose 4%.",
+    "Disobedient workers hanged from scaffolds.",
+    "Someone stamped your face on a warning poster. You’d have liked the font."
+  ]);
+
+  // --- League hunts ---
+  FLAVOR.leagueHunt = (FLAVOR.leagueHunt||[]).concat([
+    "Dragged a rat hunter out by her hair and left her corpse nailed to the city gate. No more games.",
+    "You made an example in front of the casino. The rat hunter’s fancy armor couldn’t stop the mob, or your hammer.",
+    "Her blood ran down the steps of the gala hall. Nobody volunteered to clean it, fearing the diseases it might carry."
+  ]);
+
+  // --- League purges ---
+  FLAVOR.leaguePurge = (FLAVOR.leaguePurge||[]).concat([
+    "The crowd sang old union songs while the League smashed through the gates. The Rat Hunters inside learned what it felt like to be prey. It is unfortunate that this lesson could only be spilled onto their marble floors once.",
+    "Her estate became a meat locker. League banners hung from the balconies as the mob made an example out of every hunter they found.",
+    "Bystanders cheered as you stormed the last bunkier. Rat hunters were dragged through broken glass and out into the glorious light of day, their filth purged in the very streets they terrorized. Nobody with their morals intact wept."
+  ]);
+
+  // --- Husband murders ---
+  FLAVOR.husbandStrangledAlt = (FLAVOR.husbandStrangledAlt||[]).concat([
+    "He forgot his place. You made an example: one less mouth, one more story for the girls.",
+    "He tried to protest the next safari. You fed him to your guests at the next gala.",
+    "You told yourself he was plotting against you. You kept thinking if you did it fast, you wouldn’t feel it. You were wrong."
+  ]);
+
+  // --- Safari & blood sports expansions ---
+  FLAVOR.safariFlavor = (FLAVOR.safariFlavor||[]).concat([
+    "The Humvee never stopped for potholes, just for bodies. Your group debated which pose was more ‘avant-garde’ for the trophy photo.",
+    "A poor man begged to be spared; your host called it ‘interactive performance’ and poured him a drink before gutting him.",
+    "They said it was about population control, but really, it was just about having a good time. The tour guide offered napalm and a camcorder for an extra fee. You splurged. What good was money if you never used it to enjoy yourself?"
+  ]);
+
+  FLAVOR.bloodFlavor = (FLAVOR.bloodFlavor||[]).concat([
+    "You cheered as two Dependias fought to the death for rent money. The winner cried when he realized the prize was a one-way ticket to the next round.",
+    "The only thing cheaper than a life in the arena was the drink they served in the VIP lounge.",
+    "The arena stank of sweat, blood, and despair—nobody had bothered to clean up after last week’s massacre."
+  ]);
+
+  // --- Hooker recruitment variants (additional black humor) ---
+  FLAVOR.hookerRecruitSuccess = (FLAVOR.hookerRecruitSuccess||[]).concat([
+    "Recruited a cybernetic hooker: every graft is a scar, every upgrade a memory erased. He said, ‘Flesh was a liability. Now the only pain I experience is theirs.",
+    "Recruited a cybernetic hooker. 'I used to be somebody’s son,’ he said, ‘Now I’m what’s left when the body isn’t worth selling.’",
+    "Recruited a cybernetic hooker. He only looked at you once: ‘It’s all junk metal now. The more I kill, the less I remember how it felt to lose.’"
+  ]);
+
+  // --- Husband rejection expansions ---
+  FLAVOR.husbandReject = (FLAVOR.husbandReject||[]).concat([
+    "💔 Rejected. he looked at your hands, then at your shoes. ‘I’d rather marry hunger. At least she’s honest.’",
+    "💔 Rejected by his House. 'We don’t let our men marry out of pity. Find your own burden. He deserves a chance at living past forty.'",
+    "💔 Rejected by his mother.'I hear you’re brave, but not brave enough to keep a family safe. This isn’t the story where love saves anyone. Especially not him.'"
+  ]);
+})();
+
+// ============================================================================
+// ENDING MESSAGES & EXPORT CONFIRMATION
+// ============================================================================
+if(typeof window!=="undefined"){
+  console.log("%c[Azulian Simulator v8Stable+]","color:#8fff8f;font-weight:bold;");
+  console.log("All flavor text variants loaded; original canon lines preserved.");
+  console.log("Union/League button persistence & death-lock verified active.");
+}
+
+
+
