@@ -1,13 +1,4 @@
-// ===== CHUNK 1 OF 5 =====
-// Azulian Life-Cycle & Population Simulators — v8Stable+
-// Outlanders+Union (civilian)  AND  Infamy+Rat Hunters+League (deployed)
-// Carrd / GitHub Pages compatible, pure JS, UTF-8.
-// Exposes: window.AzulianLifeSim, window.AzulianSim
-// ─────────────────────────────────────────────────────────────────────────────
-// This build preserves ALL original alt text and messages. New variants are
-// ADDED as additional options (never replacing originals). Gala logic fixed,
-// death-lock enforced, League/Union buttons remain live after “gone to ground”,
-// and “single union per lifetime” is enforced.
+///Azulian Sim
 // ─────────────────────────────────────────────────────────────────────────────
 (function(){
 
@@ -431,8 +422,8 @@ const Life = {
   },
 
   // One-tick death lock helpers
-  _beginTick(){ this._deathLock=false; this._tickGuard++; }
-  _endTick(){ this._tickGuard=Math.max(0,this._tickGuard-1); }
+  _beginTick(){ this._deathLock=false; this._tickGuard++; },
+  _endTick(){ this._tickGuard=Math.max(0,this._tickGuard-1); },
 
   // 6-month passage hook: handles autos and annihilation hazard
   _advanceHalfYear(){
