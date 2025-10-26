@@ -1,4 +1,13 @@
-///Azulian Sim
+// ===== CHUNK 1 OF 5 =====
+// Azulian Life-Cycle & Population Simulators — v8Stable+
+// Outlanders+Union (civilian)  AND  Infamy+Rat Hunters+League (deployed)
+// Carrd / GitHub Pages compatible, pure JS, UTF-8.
+// Exposes: window.AzulianLifeSim, window.AzulianSim
+// ─────────────────────────────────────────────────────────────────────────────
+// This build preserves ALL original alt text and messages. New variants are
+// ADDED as additional options (never replacing originals). Gala logic fixed,
+// death-lock enforced, League/Union buttons remain live after “gone to ground”,
+// and “single union per lifetime” is enforced.
 // ─────────────────────────────────────────────────────────────────────────────
 (function(){
 
@@ -1198,52 +1207,93 @@ reset(){
 },
 
 // ============================================================================
-// POPULATION SIMULATOR (AzulianSim)
+// POPULATION SIMULATOR (AzulianSim) 
 // ============================================================================
 AzulianSim:{
-  data:{ population:100000, birthRate:0.02, deathRate:0.02, deploymentLoss:0.01 },
+  data:{
+    Nf0: 100000, Nm: 20000, a0: 0.8, ap: 0.9, λ: 2.5, j: 0.7, Y: 4,
+    π: 0.8, k: 3, clanPrestige: 0.0, cycles: 10
+  },
+
   mount(containerId="azulian-sim"){
     const root=document.getElementById(containerId);
     if(!root){console.error("[AzulianSim] Missing container");return;}
     root.innerHTML="";
     root.appendChild(el("h3",{text:"Azulian Population Simulator"}));
 
-    const stats=el("div",{id:"pop-stats"});
-    const controls=el("div",{style:{marginTop:"10px"}});
-    const btnTick=el("button",{text:"Advance 1 Year",onclick:()=>this.tick()});
-    const btnReset=el("button",{text:"Reset",onclick:()=>this.reset()});
-    controls.append(btnTick,btnReset);
-    root.append(stats,controls);
+    // Container elements
+    const form=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginBottom:"10px"}});
+    const mk=(label,key,min,max,step)=>{
+      const row=el("label",{style:{display:"contents"}});
+      row.append(
+        el("div",{text:label}),
+        (()=>{const wrap=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 60px",gap:"6px"}});
+          const r=el("input",{type:"range",min,max,step,value:this.data[key]});
+          const b=el("input",{type:"text",value:this.data[key],style:{width:"60px",textAlign:"right"}});
+          r.addEventListener("input",()=>{this.data[key]=parseFloat(r.value);b.value=r.value;});
+          b.addEventListener("change",()=>{this.data[key]=parseFloat(b.value)||0;r.value=b.value;});
+          wrap.append(r,b);return wrap;})()
+      );return row;
+    };
+    form.append(
+      mk("Rookie survival (a₀)","a0",0,1,0.01),
+      mk("Proven survival (aₚ)","ap",0,1,0.01),
+      mk("Litter size (λ)","λ",0,5,0.1),
+      mk("Juvenile survival (j)","j",0,1,0.01),
+      mk("Years ashore (Y)","Y",0,8,0.5),
+      mk("Redeploy fraction (π)","π",0,1,0.01),
+      mk("Polyandry (k)","k",1,10,0.1),
+      mk("Clan prestige","clanPrestige",0,1,0.05)
+    );
 
+    const btnRun=el("button",{text:"Run Simulation",onclick:()=>this.run()});
+    const btnReset=el("button",{text:"Reset",onclick:()=>this.reset(),style:{marginLeft:"8px"}});
+    const controls=el("div",{style:{marginBottom:"8px"}},[btnRun,btnReset]);
+
+    this.out=el("div",{id:"pop-output",style:{fontFamily:"monospace",whiteSpace:"pre-wrap",fontSize:"13px"}});
+    root.append(form,controls,this.out);
     this.root=root;
-    this.stats=stats;
     this.render();
+  },
+
+  _step(state){
+    const {a0,ap,λ,j,Y,π,k,clanPrestige}=this.data;
+    const {R,P}=state; // rookies, proven
+    const provenSurv = ap*(1+0.2*clanPrestige);
+    const newProven = R*a0;
+    const provenNext = P*provenSurv;
+    const shoreProven = P*(1-π);
+    const daughters = shoreProven*(2*λ*j*Y)*0.5;
+    const nextR = daughters;
+    const Nm = 20000;
+    const Ne = (4*(shoreProven*Nm)/(shoreProven+Nm))*(1-1/k);
+    return {R:nextR,P:newProven+provenNext,Ne,daughters};
+  },
+
+  run(){
+    const d=this.data;
+    let state={R:d.Nf0,P:0};
+    let text="Cycle | Rookies | Proven | Daughters | Ne (eff pop)\n";
+    text+="-----------------------------------------------\n";
+    for(let i=1;i<=d.cycles;i++){
+      state=this._step(state);
+      text+=`${i.toString().padStart(5)} | ${state.R.toExponential(2).padStart(9)} | ${state.P.toExponential(2).padStart(9)} | ${state.daughters.toExponential(2).padStart(9)} | ${state.Ne.toExponential(2).padStart(11)}\n`;
+    }
+    this.out.textContent=text;
   },
 
   render(){
-    const d=this.data;
-    if(!this.stats)return;
-    this.stats.innerHTML=
-      `Population: ${Math.round(d.population).toLocaleString()}<br>`+
-      `Birth Rate: ${(d.birthRate*100).toFixed(2)}%<br>`+
-      `Death Rate: ${(d.deathRate*100).toFixed(2)}%<br>`+
-      `Deployment Loss: ${(d.deploymentLoss*100).toFixed(2)}%`;
-  },
-
-  tick(){
-    const d=this.data;
-    const births=d.population*d.birthRate;
-    const deaths=d.population*d.deathRate;
-    const combat=d.population*d.deploymentLoss;
-    d.population=d.population+births-deaths-combat;
-    this.render();
+    if(this.out) this.out.textContent="Adjust sliders then click Run Simulation.";
   },
 
   reset(){
-    this.data={ population:100000, birthRate:0.02, deathRate:0.02, deploymentLoss:0.01 };
+    this.data={
+      Nf0:100000,Nm:20000,a0:0.8,ap:0.9,λ:2.5,j:0.7,Y:4,π:0.8,k:3,clanPrestige:0.0,cycles:10
+    };
     this.render();
   }
 },
+
 
 // ============================================================================
 // ATTACH TO WINDOW
