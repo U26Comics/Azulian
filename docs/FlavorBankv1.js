@@ -321,16 +321,8 @@ window.FLAVOR = {
 ],
   firstBlood: ["🩸 You know too much to be clean again.",
   "🩸 Their expeditions are crimes in everything but name; husbands grow cold at the stories you do not tell."],
-
-  // ─── Miscellaneous / Meta ───────────────────────────
-  membersKilledRatHunters: ["Rat Hunters take their toll."],
-  husbandJealousyPoisonPlayerOutlander: ["A jealous husband poisons your meal."],
-  unionMaxCapacity: ["The Union swells beyond control."],
-  leagueMaxCapacity: ["The League grows beyond reckoning."],
-  spacePirateRumor: ["Rumors spread of defectors turned privateers."],
-  OutlanderAsexual: ["No husband, no offspring."],
-  VetAsexual: ["You cannot bear another child after war."],
-
+  
   // test placeholder for future paths
   futureEvent: ["Placeholder flavor line."]
 };
+console.log("[FlavorBank] Loaded with", Object.keys(window.FLAVOR).length, "categories.");
