@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Azulian Life Simulator</title>
+
+  <!-- Theme baseline -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(ellipse at center, #0a0a0a 0%, #1a1a1a 100%);
+      color: #eae6df;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      height: 100%;
+      overflow-y: auto;
+    }
+    body::before {
+      /* faint rust vignette / grunge overlay */
+      content: "";
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,40,40,0.03) 0%, transparent 70%),
+        repeating-linear-gradient(0deg, rgba(20,20,20,0.2) 0, rgba(20,20,20,0.2) 1px, rgba(0,0,0,0.4) 2px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    h1 {
+      color: #c72e2e;
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 24px;
+    }
+    #azulian-sim {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 12px;
+      border: 1px solid #4a2b2b;
+      box-shadow: 0 0 20px rgba(200,40,40,0.15);
+      border-radius: 8px;
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Azulian Life Simulator</h1>
+  <div id="azulian-sim"></div>
+
+  <!-- Core scripts -->
+  <script src="FlavorBankV1.js"></script>
+  <script src="AzulianLifeSimV1.js"></script>
+
+  <!-- Mount -->
+  <script>
+    // Safely mount once DOM is ready
+    function bootLifeSim(){
+      if (window.AzulianLifeSimV1 && document.getElementById("azulian-sim")){
+        window.AzulianLifeSimV1.mount("azulian-sim");
+      } else {
+        console.error("[AzulianLifeSimV1] Engine or container missing.");
+      }
+    }
+    if (document.readyState === "loading")
+      document.addEventListener("DOMContentLoaded", bootLifeSim);
+    else
+      bootLifeSim();
+  </script>
+</body>
+</html>
