@@ -274,12 +274,15 @@ function killPlayer(s, flavorKey){
     const root = document.getElementById("azulian-life-sim");
     if (!root) return;
 
+    // 🧬 Create new life from clean default state
     const newLife = new window.__AzulianLifeSimClass();
+    newLife.state = makeNewState();     // ensure reset state
+    newLife.state.ageMonths = 16 * 12;  // visible starting age
     newLife._mountRoot = root;
     newLife.render = window.renderBound(newLife);
 
-    // Log a flavor for the rebirth
-    pushLog(newLife.state, flavor("passTime", "A new cycle begins."));
+    // Log a rebirth flavor
+    pushLog(newLife.state, flavor("rebirthFlavor", "A new cycle begins at age 16."));
     window._life = newLife;
     newLife.render();
   }, 1500);
@@ -603,11 +606,11 @@ Life.prototype.reproduce = function(){
 
   // Preconditions
   if (s.outlander && s.husbands < 1){
-    this._pushAndRender(s, flavor("OutlanderAsexual"));
+  this._pushAndRender("OutlanderAsexual", "If only Sam Palmer was a real man.");
     return; // no time passes
   }
   if (s.deployed && s.husbands < 1 && !s.ratHunter){
-    this._pushAndRender(s, flavor("VetAsexual"));
+    this._pushAndRender("VetAsexual", "not how that works, jarhead.");
     return; // no time passes
   }
 
