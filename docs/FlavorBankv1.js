@@ -2,8 +2,8 @@
    FlavorTextBank.js — Scaffold for all known flavor categories
   will add more later
 -------------------------------------------------------------*/
-window.FLAVOR = {
-
+(function(){
+  const FLAVOR = {
   // ─── Core Time & Death ─────────────────────────────
   passTime: ["Passed another half-year trading stories and bruises, waiting for luck or death—whichever showed up first.",
   "⌛ Half a year hustling the same corners. Even the drones look bored scanning your face.",
@@ -324,5 +324,7 @@ window.FLAVOR = {
   
   // test placeholder for future paths
   futureEvent: ["Placeholder flavor line."]
-};
+ };
+  window.FLAVOR = FLAVOR;
+})();
 console.log("[FlavorBank] Loaded with", Object.keys(window.FLAVOR).length, "categories.");
