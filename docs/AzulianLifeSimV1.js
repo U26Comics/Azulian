@@ -55,6 +55,7 @@ function flavor(key, fallback){
   }
   return pick(bank);
 }
+window.flavor = flavor;
 
 
 // ─────────────────────────────────────────────────────────────
