@@ -243,11 +243,6 @@ function pushLog(s, msg){
     window._life.render();
   }
 }
-// Expose shared globals for PopSim and RedQueen
-window.CONFIG = CONFIG;
-window.pushLog = pushLog;
-
-
 
 function killPlayer(s, flavorKey){
   if (!s.alive) return;
@@ -369,32 +364,18 @@ this.render();
   }
 }
 
-// Expose singleton controller
-window.AzulianLifeSim = {
-  mount(containerId){
-    const root = document.getElementById(containerId);
-    if (!root){ console.error("[AzulianLifeSim] Missing container"); return; }
-    const life = new Life();
-    window._life = life; // for debug/buttons
-    // Attach render implementation (Part 4 will fill)
-    life._mountRoot = root;
-    life.render = renderBound(life); // defined in Part 4
-    life.render();
-  }
-};
 
 // Keep the class accessible for debugging (optional)
-window.__AzulianLifeSimClass = Life;
 
 // NOTE: The rest of the implementation continues in Parts 2–4 below.
-})();
+
 /* Azulian Life Simulator — LogicEngineBase.js
  * Part 2/4 — Ticks, Mortality, Cohorts, Jealousy
  * Relies on: Life class from Part 1, CONFIG, CHILD_P, helper fns
  */
-(function(){
 
-const Life = window.__AzulianLifeSimClass;
+
+
 
 // Ambient mortality per tick (Wait/Reproduce/etc). Uses current main path.
 Life.prototype._ambientMortalityCheck = function(){
@@ -577,14 +558,14 @@ Life.prototype._ratHunterBackgroundTick = function(){
   }
 };
 
-})();
+
 /* Azulian Life Simulator — LogicEngineBase.js
  * Part 3/4 — Actions & Events
  * Relies on: Life class from Part 1, Parts 2 helpers
  */
-(function(){
 
-const Life = window.__AzulianLifeSimClass;
+
+
 
 // ─────────────────────────────────────────────────────────────
 // Button Visibility Helpers
@@ -1217,13 +1198,10 @@ Life.prototype.cullSubterfuge = function(){
   s.eventStage = null;
 };
 
-})();
+
 /* Azulian Life Simulator — LogicEngineBase.js
  * Part 4 — Themed Rendering (Red-Terminal Bio-Horror)
  */
-(function(){
-
-const Life = window.__AzulianLifeSimClass;
 
 // ─────────────────────────────────────────────
 // Style injector – rusted command aesthetic
@@ -1498,6 +1476,25 @@ function btns(...pairs){
 
 // Bind renderer factory globally
 window.renderBound=renderBound;
+
+// Keep the class accessible for debugging (optional)
+window.__AzulianLifeSimClass = Life;
+// Expose shared globals for PopSim and RedQueen
+window.CONFIG = CONFIG;
+window.pushLog = pushLog;
+// Expose singleton controller
+window.AzulianLifeSim = {
+  mount(containerId){
+    const root = document.getElementById(containerId);
+    if (!root){ console.error("[AzulianLifeSim] Missing container"); return; }
+    const life = new Life();
+    window._life = life; // for debug/buttons
+    // Attach render implementation (Part 4 will fill)
+    life._mountRoot = root;
+    life.render = renderBound(life); // defined in Part 4
+    life.render();
+  }
+};
 
 })();
 
