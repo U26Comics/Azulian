@@ -47,7 +47,10 @@ function flavor(key, fallback){
   if (!window.FLAVOR) {
     console.warn("[Flavor] FlavorBank not loaded.");
     return `[FlavorBank missing: ${key}]`;
+
   }
+  if (typeof key !== "string") console.warn("⚠️ flavor() called with non-string key:", key);
+
   const bank = window.FLAVOR[key];
   if (!bank || !Array.isArray(bank) || bank.length === 0) {
     console.warn(`[Flavor] Missing or empty flavor category: ${key}`);
