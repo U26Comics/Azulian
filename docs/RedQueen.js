@@ -121,45 +121,55 @@ function renderSliders(sim,ctx){
   });
 }
 
-function renderChart(sim,ctx){
-  const canvas=ctx.canvas;
-  const c=canvas.getContext("2d");
-  const w=canvas.width, h=canvas.height;
+function renderChart(sim, ctx){
+  const canvas = ctx.canvas;
+  const c = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+
+  // draw black once
+  if(!ctx._init){
+    c.fillStyle = "#000";
+    c.fillRect(0,0,w,h);
+    ctx._init = true;
+  }
+
   // Scroll left by 1 px
-  const img=c.getImageData(1,0,w-1,h);
+  const img = c.getImageData(1,0,w-1,h);
   c.putImageData(img,0,0);
-  c.fillStyle="black";
+  c.fillStyle="#000";
   c.fillRect(w-1,0,1,h);
 
-  const hist=sim.history;
-  if(hist.length<2)return;
-  const last=hist[hist.length-1];
-  const prev=hist[hist.length-2];
-  const x=w-1;
-  const mapY=(val,max)=>h-(val/max)*h;
-  const maxN=sim.params.K*0.1; // scale relative
-  const maxE=5, maxS=10;
-  const yN=mapY(clamp(last.N,maxN),maxN);
-  const yE=mapY(clamp(last.E,maxE),maxE);
-  const yS=mapY(clamp(last.S,maxS),maxS);
-  const yN0=mapY(clamp(prev.N,maxN),maxN);
-  const yE0=mapY(clamp(prev.E,maxE),maxE);
-  const yS0=mapY(clamp(prev.S,maxS),maxS);
+  const hist = sim.history;
+  if(hist.length < 2) return;
+  const last = hist[hist.length-1];
+  const prev = hist[hist.length-2];
+  const x = w - 1;
 
-  c.lineWidth=1.2;
-  c.globalAlpha=0.9;
+  // realistic dynamic scaling
+  const maxN = Math.max(...hist.map(h=>h.N)) * 1.2;
+  const maxE = Math.max(...hist.map(h=>h.E)) * 1.2;
+  const maxS = Math.max(...hist.map(h=>h.S)) * 1.2;
 
-  // Population - cyan
-  c.strokeStyle="#7ee7ff";
-  c.beginPath(); c.moveTo(w-2,yN0); c.lineTo(x,yN); c.stroke();
+  const mapY = (val,max)=>h-(val/max)*h;
+  const yN  = mapY(last.N, maxN);
+  const yE  = mapY(last.E, maxE);
+  const yS  = mapY(last.S, maxS);
+  const yN0 = mapY(prev.N, maxN);
+  const yE0 = mapY(prev.E, maxE);
+  const yS0 = mapY(prev.S, maxS);
 
-  // Evolution - orange
-  c.strokeStyle="#ffb36b";
-  c.beginPath(); c.moveTo(w-2,yE0); c.lineTo(x,yE); c.stroke();
+  c.lineWidth = 1.2;
+  c.globalAlpha = 0.9;
 
-  // Selection - red
-  c.strokeStyle="#ff3b3b";
-  c.beginPath(); c.moveTo(w-2,yS0); c.lineTo(x,yS); c.stroke();
+  c.strokeStyle = "#7ee7ff"; // Population
+  c.beginPath(); c.moveTo(w-2, yN0); c.lineTo(x, yN); c.stroke();
+
+  c.strokeStyle = "#ffb36b"; // Energy
+  c.beginPath(); c.moveTo(w-2, yE0); c.lineTo(x, yE); c.stroke();
+
+  c.strokeStyle = "#ff3b3b"; // Selection
+  c.beginPath(); c.moveTo(w-2, yS0); c.lineTo(x, yS); c.stroke();
+
 }
 
 // ────────────────────────────────────────────────────────────────
