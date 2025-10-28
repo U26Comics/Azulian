@@ -33,9 +33,18 @@ function perYearMortality(totalMortality){
 // Flavor access
 // ─────────────────────────────────────────────────────────────
 function flavor(key, fallback){
-  const bank = (window.FLAVOR && window.FLAVOR[key]) || null;
-  return pick(bank || [fallback || `[Missing flavor: ${key}]`]);
+  if (!window.FLAVOR) {
+    console.warn("[Flavor] FlavorBank not loaded.");
+    return `[FlavorBank missing: ${key}]`;
+  }
+  const bank = window.FLAVOR[key];
+  if (!bank || !Array.isArray(bank) || bank.length === 0) {
+    console.warn(`[Flavor] Missing or empty flavor category: ${key}`);
+    return `[Missing flavor: ${key}]`;
+  }
+  return pick(bank);
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // Default configs (tunable balance knobs)
