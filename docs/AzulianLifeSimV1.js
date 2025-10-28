@@ -398,13 +398,24 @@ Life.prototype._ambientMortalityCheck = function(){
                         "deathAccident",
                   {advantage: advantaged});
                   // PATCH — contextual pass-time flavor
+// Contextual flavor: allow a one-tick override (e.g., reproduce)
+// If no override, default to passTime*.
 if (s.alive) {
-  const k =
-    path === "deployed" ? "passTimeExplorer" :
-    path === "outlander" ? "passTimeOutlander" :
-    "passTime";
-  pushLog(s, flavor(k));
+  let key = null;
+
+  if (s._flavorOverrideKey) {
+    key = s._flavorOverrideKey;
+    s._flavorOverrideKey = null; // one-shot override used up
+  } else {
+    const path = s.deployed ? "deployed" : (s.outlander ? "outlander" : "baseline");
+    key = (path === "deployed") ? "passTimeExplorer"
+        : (path === "outlander") ? "passTimeOutlander"
+        : "passTime";
+  }
+
+  pushLog(s, flavor(key));
 }
+
 
 };
 
@@ -604,45 +615,53 @@ Life.prototype.reproduce = function(){
   const s = this.state;
   if (!this._can("reproduce")) return;
 
-  // Preconditions
-  if (s.outlander && s.husbands < 1){
-  this._pushAndRender("OutlanderAsexual", "If only Sam Palmer was a real man.");
-    return; // no time passes
-  }
-  if (s.deployed && s.husbands < 1 && !s.ratHunter){
-    this._pushAndRender("VetAsexual", "not how that works, jarhead.");
-    return; // no time passes
-  }
-
-  // Romance flavor by state
-  if (s.outlander){
-    pushLog(s, flavor(s.husbands > 1 ? "OutlanderPolyandrousRomance" : "OutlanderMonogamousRomance"));
-  } else if (s.deployed){
-    pushLog(s, flavor(s.husbands > 1 ? "ExplorerPolyandrousRomance" : "ExplorerMonogamousRomance"));
+  // ── Universal husband requirement (includes Rat Hunter)
+  if (s.husbands < 1){
+    // Use path-appropriate "no partner" flavor; generic fallback if absent.
+    const key = s.outlander ? "OutlanderAsexual"
+              : s.deployed  ? "VetAsexual"
+              : "BaselineAsexual"; // add in your bank if needed
+    this._pushAndRender(key, "You need to take a husband first.");
+    return; // ⛔ no time passes, no cohorts
   }
 
-  // Litter size 1-6, 50/50 split
+  // ── Choose the reproduce flavor to show THIS tick (no passTime)
+  let reproKey = "reproduce"; // safe fallback if you have a generic bucket
+  if (s.ratHunter) {
+    reproKey = "reproductionRatHunter";
+  } else if (s.outlander) {
+    reproKey = (s.husbands > 1) ? "OutlanderPolyandrousRomance" : "OutlanderMonogamousRomance";
+  } else if (s.deployed) {
+    reproKey = (s.husbands > 1) ? "ExplorerPolyandrousRomance" : "ExplorerMonogamousRomance";
+  }
+
+  // This one-tick override suppresses passTime* flavor
+  s._flavorOverrideKey = reproKey;
+
+  // ── Litter size 1–6, ~50/50 split
   const litter = randInt(1,6);
   const female = Math.floor(litter * 0.5);
   const male   = litter - female;
 
-  // Path at birth for cohort mortality
-  const pathAtBirth = s.ratHunter ? "ratHunter" : (s.deployed ? "deployed" : (s.outlander ? "outlander" : "baseline"));
-  this._addCohort({size: litter, female, male, pathAtBirth});
+  // Tag cohort by path at birth (for child mortality routing)
+  const pathAtBirth = s.deployed ? "deployed"
+                    : s.outlander ? "outlander"
+                    : s.ratHunter ? "ratHunter"
+                    : "baseline";
+  this._addCohort({ size: litter, female, male, pathAtBirth });
 
   // Financial Stress — Outlander monogamy penalty
   if (s.outlander){
     if (s.husbands <= 1) s.financialStress = clamp(s.financialStress + 10, 0, 100);
-    // Polyandry mitigation per husband (for current stress). Represent as immediate drop:
-    if (s.husbands > 1) s.financialStress = clamp(s.financialStress - 10 * (s.husbands - 1), 0, 100);
+    if (s.husbands > 1)  s.financialStress = clamp(s.financialStress - 10 * (s.husbands - 1), 0, 100);
   }
+pushLog(s, flavor(s._flavorOverrideKey));
 
-  // Special Rat Hunter reproduction flavor
-  if (s.ratHunter) pushLog(s, flavor("reproductionRatHunter"));
-
-  // Passing time triggers ambient mortality etc.
+  // Advance one standard tick; mortality + background run
+  // Flavor for this tick will be ONLY `reproKey` because of override.
   this.timeTick();
 };
+
 
 Life.prototype.takeHusband = function(){
   const s = this.state;
