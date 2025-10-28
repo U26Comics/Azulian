@@ -316,7 +316,7 @@ window.AzulianLifeSim = {
 window.__AzulianLifeSimClass = Life;
 
 // NOTE: The rest of the implementation continues in Parts 2–4 below.
-
+})();
 /* Azulian Life Simulator — LogicEngineBase.js
  * Part 2/4 — Ticks, Mortality, Cohorts, Jealousy
  * Relies on: Life class from Part 1, CONFIG, CHILD_P, helper fns
@@ -1394,4 +1394,5 @@ function btns(...pairs){
 // Bind renderer factory globally
 window.renderBound=renderBound;
 
-})();})
+})();
+
