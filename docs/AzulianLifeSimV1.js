@@ -1498,15 +1498,16 @@ function renderEventPanel(s){
 function btns(...pairs){
   return `<div class="btnbar">`+pairs.map(p=>`<button class="btn" onclick="_life.${p[1]}()">${p[0]}</button>`).join("")+`</div>`;
 }
-
 // Bind renderer factory globally
-window.renderBound=renderBound;
+window.renderBound = renderBound;
 
 // Keep the class accessible for debugging (optional)
 window.__AzulianLifeSimClass = Life;
+
 // Expose shared globals for PopSim and RedQueen
 window.CONFIG = CONFIG;
 window.pushLog = pushLog;
+
 // Expose singleton controller
 window.AzulianLifeSim = {
   mount(containerId){
@@ -1521,5 +1522,7 @@ window.AzulianLifeSim = {
   }
 };
 
-})();
+// 🧩 Ensure globals visible across reloads/rebirths
+window.makeNewState = makeNewState;
 
+})(); // close IIFE
