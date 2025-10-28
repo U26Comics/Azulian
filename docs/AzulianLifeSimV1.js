@@ -156,6 +156,9 @@ const CHILD_P = {
 // ─────────────────────────────────────────────────────────────
 // Game State model
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Game State model
+// ─────────────────────────────────────────────────────────────
 function makeNewState(){
   return {
     // Meta
@@ -164,9 +167,9 @@ function makeNewState(){
     alive: true,
 
     // Time & lifespan
-    ageMonths: 0,
-    lifespanYearsCap: CONFIG.baseLifespanYears, // +4 per deployment
-    lastJealousyCheckYear: 0,
+    ageMonths: 16 * 12,  // 🧩 start at 16 years
+    lifespanYearsCap: CONFIG.baseLifespanYears,
+    lastJealousyCheckYear: 16, // keep jealousy timers consistent
 
     // Identity flags (mutually exclusive major tracks)
     outlander: false,
@@ -250,7 +253,43 @@ function killPlayer(s, flavorKey){
   if (!s.alive) return;
   s.alive = false;
   pushLog(s, flavor(flavorKey, "You died."));
+
+  flashDeath?.();
+
+  // 🧩 Initialize global life history if missing
+  window._lifeHistory = window._lifeHistory || [];
+
+  // Save completed life log
+  const archived = {
+    id: s.lifeId,
+    createdAt: s.createdAt,
+    log: [...s.log],
+    age: (s.ageMonths / 12).toFixed(1),
+    infamy: s.infamy,
+    husbands: s.husbands,
+    outlander: s.outlander,
+    deployed: s.deployed,
+    league: s.league.created,
+    ratHunter: s.ratHunter,
+  };
+  window._lifeHistory.unshift(archived);
+
+  // Delay to let the death flavor show
+  setTimeout(() => {
+    const root = document.getElementById("azulian-life-sim");
+    if (!root) return;
+
+    const newLife = new window.__AzulianLifeSimClass();
+    newLife._mountRoot = root;
+    newLife.render = window.renderBound(newLife);
+
+    // Log a flavor for the rebirth
+    pushLog(newLife.state, flavor("passTime", "A new cycle begins."));
+    window._life = newLife;
+    newLife.render();
+  }, 1500);
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // Main class
@@ -1400,10 +1439,31 @@ const controls = section("Controls","showControls",`
 // Event panel
 const ep = s.activeEvent ? renderEventPanel(s) : "";
 
-    // Log
-    const logs=s.log.map(l=>`<div>${l}</div>`).join("");
-    const log=section("Log","showLog",
-      `<div class="log-body" id="life-log">${logs}</div>`);
+   // Log
+let cycleLogs = "";
+
+// 🧩 Add archived life logs as collapsible sections
+if (window._lifeHistory && window._lifeHistory.length > 0) {
+  cycleLogs = window._lifeHistory.map((life, i) => {
+    const lines = life.log.map(l => `<div>${l}</div>`).join("");
+    const label = `Cycle ${window._lifeHistory.length - i} — age ${life.age} | infamy ${life.infamy}`;
+    return `
+      <details class="cycle-log">
+        <summary>${label}</summary>
+        <div class="log-body">${lines}</div>
+      </details>`;
+  }).join("");
+}
+
+const logs = s.log.map(l => `<div>${l}</div>`).join("");
+const currentLabel = `Current Cycle — age ${(s.ageMonths/12).toFixed(1)} yrs`;
+const log = section("Log","showLog",`
+  <details class="cycle-log" open>
+    <summary>${currentLabel}</summary>
+    <div class="log-body" id="life-log">${logs}</div>
+  </details>
+  ${cycleLogs}
+`);
 
     root.innerHTML=`<div class="life-wrap">${hud}${cohorts}${controls}${ep}${log}</div>`;
   };
