@@ -120,18 +120,23 @@
   "🩸🚀 Forcibly deployed until death after serial killings destroyed Yebra IP."],
 
   // ─── Reproduction & Childhood ──────────────────────
+  
   OutlanderAsexual: ["🥀 Attempted immaculate conception. Yebra laughs; the neighbors wonder who reincarnated Diogenes.",
   "🥀 Your application to continue the bloodline was denied due to insufficient assets.",
   "🥀 You tried self-pollination. Turns out, the only thing you fertilized was your own ego.",
   "🥀 You thought immaculate conception was just a matter of persistence. Spoiler: it’s not.",
   "🥀 You gave yourself a night to remember, but reproduction requires a bit more teamwork."],
+   BaselineAsexual: ["🤡 It takes two to tango.",
+    "🤡 At least do that in the privacy of your room, or dumpster, given the circumstances.",
+    "🤡 Try Deployment if you want to attract someones interest, otherwise this solo act will get you nowhere except jail for indecent exposure."
+   ],
   VetAsexual: ["🖍️🤡 They said deployment builds character, not that it lets you bypass the birds and the bees.",
   "🖍️🤡 Clicking ‘reproduce’ solo? Maybe the last IED did more damage than I thought.",
   "🖍️🤡 Did the crayons go to your head? You're a mammal, not a lizard or a plant.",
   "🖍️🤡 There's a reason Yebra didn't design you to be able to do that solo. See Star Treck S2 E15. Now imagine each Tribble is a 800lb super soldier on Meth.",
   "🖍️🤡 You tried to play Mote-in-God’s-Eye, but Yebra already patched that loophole—no parthenogenesis, no Grey Horde, no empire for you.",
   "🖍️🤡 Nice try, Motie—Yebra’s two-sex policy exists to stop exactly this kind of genetic sabotage"],
-  OutlanderMonogamousRomance: ["🌱 Every night, you sleep beside someone who’d fight Rat Hunters and raiders for you.",
+  OutlanderMonogamousRomance: ["🌱 Every night, you sleep beside someone who’d fight Rat Hunters and raiders for you. Together, you create children to carry on that legacy.",
   "🌱 Each Outlander child is a gamble and a rebellion; the city fears your stubborn blood more than it admits.",
   "🌱 No priest, no contract, just sweat and shared harvest—your line survives by work and trust, not by Yebra’s decree.",
   "🌱 Your loyalty is rarer than rain, but you find comfort in each other; together you bring new hands and old hope to the edge of the world.",
