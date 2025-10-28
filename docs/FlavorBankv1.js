@@ -101,7 +101,7 @@ window.FLAVOR = {
   "🔥☠️ Forgotten gods and broken civilizations filled your nightmares; today, you joined them in the dustbin of history.",
   "🔥☠️ You left a thousand dead worlds behind you—now you join them, just another stain in the dark.",
   "🔥☠️ You tore through the swarm in a haze of berserker chemicals, roaring with laughter until you collapsed atop a hill of alien corpses, shot full of holes you never felt.",
-  "🔥☠️ You screamed defiance, hacking limbs and flesh until the world spun with crimson and teeth. You didn’t notice your own guts trailing behind you until your hands went slack and the ground rose up to meet you."
+  "🔥☠️ You screamed defiance, hacking limbs and flesh until the world spun with crimson and teeth. You didn’t notice your own guts trailing behind you until your hands went slack and the ground rose up to meet you.",
   "🔥☠️ Didn’t hear your squad screaming for retreat, didn’t feel the acid burning your skin; you died with your fists locked in something’s throat, grinning blood.",
   "🔥☠️ Out of ammo, out of time, but high on slaughter, you ripped and bit until nothing moved but your own blood across the cold metal of a Xeno warship.",
   "🔥☠️ A miscalculation in the gellar field turned your bones to glass and your blood to dust, both equally hard to sweep up.",
@@ -120,15 +120,15 @@ window.FLAVOR = {
   "🩸🚀 Forcibly deployed until death after serial killings destroyed Yebra IP."],
 
   // ─── Reproduction & Childhood ──────────────────────
-  OutlanderAsexual: ["🥀 Attempted immaculate conception. Yebra laughs; the neighbors wonder who reincarnated Diogenes."
-  "🥀 Your application to continue the bloodline was denied due to insufficient assets."
+  OutlanderAsexual: ["🥀 Attempted immaculate conception. Yebra laughs; the neighbors wonder who reincarnated Diogenes.",
+  "🥀 Your application to continue the bloodline was denied due to insufficient assets.",
   "🥀 You tried self-pollination. Turns out, the only thing you fertilized was your own ego.",
   "🥀 You thought immaculate conception was just a matter of persistence. Spoiler: it’s not.",
   "🥀 You gave yourself a night to remember, but reproduction requires a bit more teamwork."],
   VetAsexual: ["🖍️🤡 They said deployment builds character, not that it lets you bypass the birds and the bees.",
   "🖍️🤡 Clicking ‘reproduce’ solo? Maybe the last IED did more damage than I thought.",
   "🖍️🤡 Did the crayons go to your head? You're a mammal, not a lizard or a plant.",
-  "🖍️🤡 There's a reason Yebra didn't design you to be able to do that solo. See Star Treck S2 E15. Now imagine each Tribble is a 800lb super soldier on Meth."
+  "🖍️🤡 There's a reason Yebra didn't design you to be able to do that solo. See Star Treck S2 E15. Now imagine each Tribble is a 800lb super soldier on Meth.",
   "🖍️🤡 You tried to play Mote-in-God’s-Eye, but Yebra already patched that loophole—no parthenogenesis, no Grey Horde, no empire for you.",
   "🖍️🤡 Nice try, Motie—Yebra’s two-sex policy exists to stop exactly this kind of genetic sabotage"],
   OutlanderMonogamousRomance: ["🌱 Every night, you sleep beside someone who’d fight Rat Hunters and raiders for you.",
@@ -145,8 +145,8 @@ window.FLAVOR = {
   OutlanderPolyandrousRomance: ["🪓 Your appetite for more than one man feels like city arrogance to your neighbors; still, under your roof a new cohort is born.",
   "🪓 Love stretched across many cots draws whispers of Explorer decadence. Yet, the Outland population grows, even as jealousy sharpens every shadow.",
   "🪓 Polyandry here marks you as spoiled, soft, too full of yourself. Your children are born to a home where ego and pride fight at every meal.",
-  "🪓 Your city-style romance is a badge of trouble out here; new children join a family watched by envious women and wary kin."
-  "🪓 You savor the power of multiple men competing for your favor. When the dust settles, a fresh crop of children proves your legacy still rules the Outlands."
+  "🪓 Your city-style romance is a badge of trouble out here; new children join a family watched by envious women and wary kin.",
+  "🪓 You savor the power of multiple men competing for your favor. When the dust settles, a fresh crop of children proves your legacy still rules the Outlands.",
   "🪓 You collect men like trophies, turning jealousy into entertainment; your latest cohort is just another testament to your irresistible command, that they would tolerate this even here, in the dirt.",
   "🪓 He followed you into the Outlands, giving up safety and kin; now, as new children cry in your crowded shack, bitterness settles where loyalty once lived.",
   "🪓 Your first love braved exile to build a life by your side. With another man under your roof and a fresh cohort in the crib, trust curdles to grief.",
@@ -161,7 +161,7 @@ window.FLAVOR = {
   "Every touch is an act in an imaginary play, each smile rehearsed for an audience that doesn’t exist. Still, the children who arrive are flesh and blood, even if the love isn’t.",
   ""],
   ExplorerPolyandrousRomance: ["Every night is a conquest, every morning a negotiation; the kids you produce are just one more way to remind your peers who runs this district.",
-  "Entitlement is your birthright, love a fleeting contract. Your children outnumber your apologies."
+  "Entitlement is your birthright, love a fleeting contract. Your children outnumber your apologies.",
   "You cycle through Dependias like fashion, each one bought and paid for. Children become trophies in your campaign against rival houses.",
   "Affection is a business arrangement: Dependias smile for stipends, and you bear children to flaunt your supremacy, not to raise them.",
   "You tell yourself their affection is real, that the gifts and smiles aren’t just part of the price. When children arrive, you call it proof instead of payment.",
