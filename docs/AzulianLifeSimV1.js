@@ -8,12 +8,23 @@
 // ─────────────────────────────────────────────────────────────
 // Utility helpers
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Utility helpers — made global so PopSim/RedQueen can use them
+// ─────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-const chance = p => Math.random() < p;            // p in [0,1]
+const chance = p => Math.random() < p;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)] || "";
 const pct = v => `${Math.round(v)}%`;
 const nowTs = () => Date.now();
+
+// Export for global access
+window.clamp = clamp;
+window.randInt = randInt;
+window.chance = chance;
+window.pick = pick;
+window.pct = pct;
+window.nowTs = nowTs;
 
 // Advantage-style death check: if advantage is true, require BOTH rolls to be lethal.
 function lethalRoll(prob, advantage=false){
@@ -221,9 +232,18 @@ function makeNewState(){
 function pushLog(s, msg){
   if (!msg) return;
   s.log.unshift(msg);
-  // hard-limit log growth
   if (s.log.length > 500) s.log.length = 500;
+
+  // 🔧 Force UI update after log change
+  if (window._life && typeof window._life.render === "function") {
+    window._life.render();
+  }
 }
+// Expose shared globals for PopSim and RedQueen
+window.CONFIG = CONFIG;
+window.pushLog = pushLog;
+
+
 
 function killPlayer(s, flavorKey){
   if (!s.alive) return;
@@ -282,7 +302,9 @@ class Life {
     if (!this._deathGate && yrs >= this.state.lifespanYearsCap){
       this._maybeKill(1, "deathAccident"); // natural end; use a generic death flavor
     }
-  }
+this.render();
+  
+}
 
   // Special advance that skips ambient/background checks (Deployment/Hiding)
   advanceYears(years){
@@ -560,11 +582,11 @@ Life.prototype.reproduce = function(){
 
   // Preconditions
   if (s.outlander && s.husbands < 1){
-    pushLog(s, flavor("OutlanderAsexual"));
+    this._pushAndRender(s, flavor("OutlanderAsexual"));
     return; // no time passes
   }
   if (s.deployed && s.husbands < 1 && !s.ratHunter){
-    pushLog(s, flavor("VetAsexual"));
+    this._pushAndRender(s, flavor("VetAsexual"));
     return; // no time passes
   }
 
