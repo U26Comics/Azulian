@@ -1329,31 +1329,44 @@ function renderBound(self){
     const cohorts=section("Cohorts","showCohorts",
       `<div class="cohorts-body">${chips||"<span class='muted'>None</span>"}</div>`);
 
-    // Controls
-    const b=(l,f,c=true)=>`<button class="btn" ${c?"":"disabled"} onclick="_life.${f}()">${l}</button>`;
-    const controls=section("Controls","showControls",`
-      <div class="btnbar">
-        ${b("Reproduce","reproduce",self._can("reproduce"))}
-        ${b("Take Husband","takeHusband",self._can("takeHusband"))}
-        ${b("Wait","wait",self._can("wait"))}
-        ${b("Join Outlanders","joinOutlanders",self._can("joinOutlanders"))}
-        ${b("Create Union","createUnion",self._can("createUnion"))}
-        ${b("Expand Union","expandUnion",self._can("expandUnion"))}
-        ${b("Build Cache","buildCache",self._can("buildCache"))}
-        ${b("Sabotage","sabotage",self._can("sabotage"))}
-        ${b("Revolt","revolt",self._can("revolt"))}
-        ${b("Deploy","deploy",self._can("deploy"))}
-        ${b("Attend Gala","attendGala",self._can("attendGala"))}
-        ${b("Start Duel","startDuel",self._can("startDuel"))}
-        ${b("Expand League","expandLeague",self._can("expandLeague"))}
-        ${b("Hunt Hunter","huntHunter",self._can("huntHunter"))}
-        ${b("Enact Purge","enactPurge",self._can("enactPurge"))}
-        ${b("Safari","safari",self._can("safari"))}
-        ${b("Bloodsports","bloodsports",self._can("bloodsports"))}
-      </div>`);
 
-    // Event panel
-    const ep=s.activeEvent?renderEventPanel(s):"";
+// Controls
+// ——— Only show actions when unlocked, but keep base ones visible for flavor
+const b=(label, func)=>{
+  const alwaysVisible = ["reproduce","takeHusband","wait"]; // base actions always on screen
+  const can = self._can(func);
+
+  // Always-visible buttons stay clickable for flavor; story-gated ones hidden until unlocked
+  if (can || alwaysVisible.includes(func)) {
+    const lockedClass = can ? "" : "locked"; // CSS variant, still clickable if you want flavor
+    return `<button class="btn ${lockedClass}" onclick="_life.${func}()">${label}</button>`;
+  }
+  return "";
+};
+
+const controls = section("Controls","showControls",`
+  <div class="btnbar">
+    ${b("Reproduce","reproduce")}
+    ${b("Take Husband","takeHusband")}
+    ${b("Wait","wait")}
+    ${b("Join Outlanders","joinOutlanders")}
+    ${b("Create Union","createUnion")}
+    ${b("Expand Union","expandUnion")}
+    ${b("Build Cache","buildCache")}
+    ${b("Sabotage","sabotage")}
+    ${b("Revolt","revolt")}
+    ${b("Deploy","deploy")}
+    ${b("Attend Gala","attendGala")}
+    ${b("Start Duel","startDuel")}
+    ${b("Expand League","expandLeague")}
+    ${b("Hunt Hunter","huntHunter")}
+    ${b("Enact Purge","enactPurge")}
+    ${b("Safari","safari")}
+    ${b("Bloodsports","bloodsports")}
+  </div>`);
+
+// Event panel
+const ep = s.activeEvent ? renderEventPanel(s) : "";
 
     // Log
     const logs=s.log.map(l=>`<div>${l}</div>`).join("");
