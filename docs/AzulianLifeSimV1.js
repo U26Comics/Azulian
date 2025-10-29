@@ -272,23 +272,25 @@ function killPlayer(s, flavorKey){
   };
   window._lifeHistory.unshift(archived);
 
-  // Delay to let the death flavor show
-  setTimeout(() => {
-    const root = document.getElementById("azulian-life-sim");
-    if (!root) return;
+// Delay to let the death flavor show
+setTimeout(() => {
+  const root = document.getElementById("azulian-life-sim");
+  if (!root) return;
 
-    // 🧬 Create new life from clean default state
-    const newLife = new window.__AzulianLifeSimClass();
-    newLife.state = makeNewState();     // ensure reset state
-    newLife.state.ageMonths = 16 * 12;  // visible starting age
-    newLife._mountRoot = root;
-    newLife.render = window.renderBound(newLife);
+  // 🧬 Create new life from clean default state
+  const newLife = new window.__AzulianLifeSimClass();
+  newLife.state = makeNewState();     // ensure reset state
+  newLife.state.ageMonths = 16 * 12;  // start at age 16
+  newLife._mountRoot = root;
+  newLife.render = window.renderBound(newLife);
 
-    // Log a rebirth flavor
-    pushLog(newLife.state, flavor("rebirthFlavor", "A new cycle begins at age 16."));
-    window._life = newLife;
-    newLife.render();
-  }, 1500);
+  // 🪶 Log rebirth flavor and trigger visual cycle transition
+  pushLog(newLife.state, flavor("rebirthFlavor", "A new cycle begins at age 16."));
+  window._life = newLife;
+  flashNewCycle(); // 🩸 visual rebirth transition
+  newLife.render();
+}, 1500);
+
 }
 
 
@@ -446,7 +448,7 @@ Life.prototype._cohortYearlyProcessing = function(){
     if (c.size <= c.dead) continue; // all dead
     const years = Math.floor(c.ageMonths / 12);
     // Age them by the tick amount
-    c.ageMonths += 0; // ageMonths already advanced in timeTick()
+    c.ageMonths += CONFIG.tickMonths;
 
     // Process each whole year boundary once
     while (c.lastYearRolled < years && s.alive){
@@ -658,7 +660,11 @@ Life.prototype.reproduce = function(){
     if (s.husbands <= 1) s.financialStress = clamp(s.financialStress + 10, 0, 100);
     if (s.husbands > 1)  s.financialStress = clamp(s.financialStress - 10 * (s.husbands - 1), 0, 100);
   }
-pushLog(s, flavor(s._flavorOverrideKey));
+// This one-tick override suppresses passTime* flavor in _ambientMortalityCheck
+s._flavorOverrideKey = reproKey;
+
+// … litter + cohorts + stress …
+
 
   // Advance one standard tick; mortality + background run
   // Flavor for this tick will be ONLY `reproKey` because of override.
@@ -999,6 +1005,9 @@ Life.prototype.galaInvestigate = function(){
     // success → can Found ADL with 10 members, +30 Moral Clarity
     pushLog(s, flavor("kickedRatHuntersFromGala"));
     s.eventStage = "found_league_ready";
+    s.eventData = s.eventData || {};
+s.eventData.galaInvestigateSuccess = true;
+
   } else {
     // failure → kicked; retaliation risk enabled until League founded
     pushLog(s, flavor("galaKicked"));
@@ -1047,18 +1056,18 @@ Life.prototype.foundLeague = function(){
   s.leagueActive = true;
   s.ratHunter = false;
 
-  // If success path (kickedRatHuntersFromGala flavor) → start with 10 members; else with 1
-  const successPath = s.log[0] && s.log[0].includes(flavor("kickedRatHuntersFromGala")); // heuristic
+  // ✅ pull success flag set in galaInvestigate
+  const successPath = !!(s.eventData && s.eventData.galaInvestigateSuccess);
   s.league.size = successPath ? 10 : 1;
 
   s.moralClarity += 30;
-  // League founded → stop retaliation
   s.galaRetaliationActive = false;
 
   pushLog(s, flavor("foundLeague") || "The Anti-Degeneracy League is founded.");
   s.activeEvent = null;
   s.eventStage = "gala_done";
 };
+
 
 // Recurring retaliation until League founded
 Life.prototype._galaRetaliationTick = function(){
@@ -1354,14 +1363,89 @@ function flashDeath(){
   setTimeout(()=>document.body.classList.remove("flash-death"),800);
 }
 
-// Monkeypatch killPlayer to trigger flash
-const origKill = window.killPlayer;
-if(origKill){
-  window.killPlayer = function(s,flavorKey){
-    flashDeath();
-    return origKill(s,flavorKey);
-  };
+// ─────────────────────────────────────────────
+// Visual feedback — Death + Rebirth Cycle
+// ─────────────────────────────────────────────
+
+// Red flash when dying (already exists)
+function flashDeath(){
+  document.body.classList.add("flash-death");
+  setTimeout(()=>document.body.classList.remove("flash-death"),800);
 }
+
+// 🌀 New cycle (rebirth) overlay with previous life stats
+function flashNewCycle(prevStats = {}){
+  const overlay = document.createElement("div");
+  overlay.className = "flash-new-cycle";
+
+  // Pull info from the last archived life if available
+  const last = (window._lifeHistory && window._lifeHistory[0]) || {};
+  const prevAge = last.age ? `Age ${last.age}` : "";
+  const prevPath = last.outlander ? "Outlander"
+                  : last.deployed ? "Deployed"
+                  : last.league ? "League"
+                  : last.ratHunter ? "Rat Hunter"
+                  : "Baseline";
+  const pathLabel = prevAge ? `${prevAge} — ${prevPath}` : "";
+
+  overlay.innerHTML = `
+    <div class="cycle-label">
+      NEW CYCLE
+      ${pathLabel ? `<div class="cycle-sub">${pathLabel}</div>` : ""}
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.classList.add("visible"), 10);
+  setTimeout(() => overlay.classList.remove("visible"), 2500);
+  setTimeout(() => overlay.remove(), 3200);
+}
+
+// Inject CSS for new-cycle overlay
+(function(){
+  const css = document.createElement("style");
+  css.textContent = `
+  .flash-new-cycle {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.9) 100%);
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 0.8s ease-in-out;
+    flex-direction: column;
+  }
+  .flash-new-cycle.visible { opacity: 1; }
+
+  .flash-new-cycle .cycle-label {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 36px;
+    color: #d67b00;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 18px rgba(214,123,0,0.9);
+    text-transform: uppercase;
+    text-align: center;
+    animation: cyclePulse 2.2s ease-in-out infinite alternate;
+  }
+
+  .flash-new-cycle .cycle-sub {
+    font-size: 16px;
+    color: #eae6df;
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+    opacity: 0.9;
+  }
+
+  @keyframes cyclePulse {
+    0% { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.05); }
+  }
+  `;
+  document.head.appendChild(css);
+})();
+
 
 // ─────────────────────────────────────────────
 // Renderer binding
@@ -1513,11 +1597,15 @@ window.AzulianLifeSim = {
   mount(containerId){
     const root = document.getElementById(containerId);
     if (!root){ console.error("[AzulianLifeSim] Missing container"); return; }
+
+    // 🧩 Use makeNewState() directly so age = 16 yrs at start
     const life = new Life();
-    window._life = life; // for debug/buttons
-    // Attach render implementation (Part 4 will fill)
+    life.state = makeNewState(); 
+    life.state.ageMonths = 16 * 12;
+
+    window._life = life;
     life._mountRoot = root;
-    life.render = renderBound(life); // defined in Part 4
+    life.render = renderBound(life);
     life.render();
   }
 };
