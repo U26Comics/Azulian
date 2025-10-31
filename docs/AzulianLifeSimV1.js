@@ -1551,11 +1551,7 @@ function renderBound(self){
       return `<span class="chip">#${c.id} age:${y} (${alive}/${c.size})</span>`;
     }).join(" ");
     const cohorts=section("Cohorts","showCohorts",
-      `<div class="cohorts-body">${chips||"<span class='muted'>None</span>"}</div>`);
-;
-    };
-  }
-        
+      `<div class="cohorts-body">${chips||"<span class='muted'>None</span>"}</div>`);        
 /* --------------------------------------------------------------
    1️⃣ Controls – only show actions when unlocked, but keep base
    actions visible for flavor (including Join Outlanders)
@@ -1675,7 +1671,7 @@ function btns(...pairs) {
   // `pairs` is an array of [label, func] tuples
   return `<div class="btnbar">` + pairs.map(p => `<button class="btn" onclick="_life.${p[1]}()">${p[0]}</button>`).join("") + `</div>`;
 }
-
+  }}
 /* --------------------------------------------------------------
    8️⃣ Bind renderer factory globally (already existed)
    -------------------------------------------------------------- */
