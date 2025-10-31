@@ -6,9 +6,6 @@
 (function(){
 
 // ─────────────────────────────────────────────────────────────
-// Utility helpers
-// ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
 // Utility helpers — made global so PopSim/RedQueen can use them
 // ─────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -155,10 +152,6 @@ const CHILD_P = {
   outlander: perYearMortality(CONFIG.childTotalMortality.outlander),
   ratHunter: perYearMortality(CONFIG.childTotalMortality.ratHunter)
 };
-
-// ─────────────────────────────────────────────────────────────
-// Game State model
-// ─────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────
 // Game State model
 // ─────────────────────────────────────────────────────────────
@@ -170,11 +163,12 @@ function makeNewState(){
     alive: true,
 
     // Time & lifespan
-    ageMonths: 16 * 12,  // 🧩 start at 16 years
+    ageMonths: 16 * 12,           // start at 16 years
     lifespanYearsCap: CONFIG.baseLifespanYears,
-    lastJealousyCheckYear: 16, // keep jealousy timers consistent
+    lastJealousyCheckYear: 16,    // align jealousy cadence
+    isNewCycle: true,             // 🔸 flag for renderer label
 
-    // Identity flags (mutually exclusive major tracks)
+    // Identity flags
     outlander: false,
     deployed: false,
     leagueActive: false,
@@ -184,18 +178,18 @@ function makeNewState(){
     husbands: 0,
     infamy: 0,
     moralClarity: 0,
-    financialStress: 0,  // 0..100
-    globallyOutlanderAdvantage: false, // set after Revolt success (persists across cycles if you wire persistence)
+    financialStress: 0,
+    globallyOutlanderAdvantage: false,
 
-    // Children — cohorts
-    cohorts: [], // { id, ageMonths, size, female, male, dead, pathAtBirth, lastYearRolled, notes }
+    // Children
+    cohorts: [], // { id, ageMonths, size, female, male, dead, pathAtBirth, lastYearRolled }
 
     // Union
     union: {
       created: false,
       size: 0,
       caches: 0,
-      revoltChanceBoost: 0, // from sabotage, protest/subterfuge
+      revoltChanceBoost: 0,
       hidingActive: false
     },
 
@@ -203,9 +197,9 @@ function makeNewState(){
     league: {
       created: false,
       size: 0,
-      hideouts: 0, // (optional future capacity mechanic)
+      hideouts: 0,
       hidingActive: false,
-      hookerRecruited: false // boosts hunt success and Purge +10%
+      hookerRecruited: false
     },
 
     // Rat Hunter counters
@@ -213,17 +207,16 @@ function makeNewState(){
     bloodsportsUnlocked: false,
     annihilationActive: false,
 
-    // Event system (compact panel)
-    activeEvent: null,      // "gala" | "cull" | null
-    eventStage: null,       // string stage per event
-    eventData: {},          // scratchpad per event
+    // Event system
+    activeEvent: null,
+    eventStage: null,
+    eventData: {},
 
-    // Gala retaliation (recurring until League officially founded)
+    // Gala retaliation (until League founded)
     galaRetaliationActive: false,
 
-    // UI log
-    log: [], // newest-first strings
-    // Collapsible UI toggles
+    // UI log + toggles
+    log: [],
     ui: {
       showHUD: true,
       showLog: true,
@@ -233,31 +226,53 @@ function makeNewState(){
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-// Logger (newest-first) and safe death gate
-// ─────────────────────────────────────────────────────────────
-function pushLog(s, msg){
+/* --------------------------------------------------------------
+   1️⃣ Enhanced logger – case‑insensitive, colour mapping
+   -------------------------------------------------------------- */
+function pushLog(s, msg, key) {
   if (!msg) return;
-  s.log.unshift(msg);
+
+  const k = (key || "").toLowerCase();   // normalize once
+  let cls = "";
+
+  if (k) {
+    if (k.includes("death"))               cls = "flav-death";
+    else if (k.includes("repro") ||
+             k.includes("romance"))        cls = "flav-repro";
+    else if (k.includes("passtime"))       cls = "flav-pass";
+    else if (k.includes("union") ||
+             k.includes("league"))         cls = "flav-faction";
+    else if (k.includes("husband"))        cls = "flav-husband";
+    else if (k.includes("safari") ||
+             k.includes("blood"))          cls = "flav-combat";
+    // optional: else cls = "flav-unknown";
+  }
+
+  const wrapped = cls ? `<span class="${cls}">${msg}</span>` : msg;
+  s.log.unshift(wrapped);
   if (s.log.length > 500) s.log.length = 500;
 
-  // 🔧 Force UI update after log change
   if (window._life && typeof window._life.render === "function") {
     window._life.render();
   }
 }
+window.pushLog = pushLog;
 
-function killPlayer(s, flavorKey){
+/* --------------------------------------------------------------
+   2️⃣ killPlayer – forward the flavour key for colour
+   -------------------------------------------------------------- */
+function killPlayer(s, flavorKey) {
   if (!s.alive) return;
   s.alive = false;
-  pushLog(s, flavor(flavorKey, "You died."));
+
+  // <-- key passed as third argument
+  pushLog(s, flavor(flavorKey, "You died."), flavorKey);
 
   flashDeath?.();
 
-  // 🧩 Initialize global life history if missing
+  // … rest of the function unchanged …
   window._lifeHistory = window._lifeHistory || [];
 
-  // Save completed life log
   const archived = {
     id: s.lifeId,
     createdAt: s.createdAt,
@@ -272,27 +287,26 @@ function killPlayer(s, flavorKey){
   };
   window._lifeHistory.unshift(archived);
 
-// Delay to let the death flavor show
-setTimeout(() => {
-  const root = document.getElementById("azulian-life-sim");
-  if (!root) return;
+  setTimeout(() => {
+    const root = document.getElementById("azulian-life-sim");
+    if (!root) return;
 
-  // 🧬 Create new life from clean default state
-  const newLife = new window.__AzulianLifeSimClass();
-  newLife.state = makeNewState();     // ensure reset state
-  newLife.state.ageMonths = 16 * 12;  // start at age 16
-  newLife._mountRoot = root;
-  newLife.render = window.renderBound(newLife);
+    const newLife = new window.__AzulianLifeSimClass();
+    newLife.state = makeNewState();
+    newLife.state.ageMonths = 16 * 12;
+    newLife._mountRoot = root;
+    newLife.render = window.renderBound(newLife);
 
-  // 🪶 Log rebirth flavor and trigger visual cycle transition
-  pushLog(newLife.state, flavor("rebirthFlavor", "A new cycle begins at age 16."));
-  window._life = newLife;
-  flashNewCycle(); // 🩸 visual rebirth transition
-  newLife.render();
-}, 1500);
+    // <-- optional colour for rebirth
+    pushLog(newLife.state,
+            flavor("rebirthFlavor", "A new cycle begins at age 16."),
+            "rebirthFlavor");
 
+    window._life = newLife;
+    flashNewCycle();
+    newLife.render();
+  }, 1500);
 }
-
 
 // ─────────────────────────────────────────────────────────────
 // Main class
@@ -307,7 +321,7 @@ class Life {
   _maybeKill(prob, flavorKey, {advantage=false} = {}){
     if (this._deathGate || !this.state.alive) return false;
     if (lethalRoll(prob, advantage)){
-      killPlayer(this.state, flavorKey);
+      killPlayer(this.state, flavorKey);   // killPlayer now forwards the key
       this._deathGate = true;
       return true;
     }
@@ -345,9 +359,8 @@ class Life {
     if (!this._deathGate && yrs >= this.state.lifespanYearsCap){
       this._maybeKill(1, "deathAccident"); // natural end; use a generic death flavor
     }
-this.render();
-  
-}
+    this.render();
+  }
 
   // Special advance that skips ambient/background checks (Deployment/Hiding)
   advanceYears(years){
@@ -357,8 +370,13 @@ this.render();
 
   // ── Rendering hooks (wired later in Part 4)
   render(){ /* wired in Part 4 */ }
+
+  /** 
+   * Helper that logs a flavour line **and** forces a render.
+   * It now forwards the key so the logger can colour the line.
+   */
   _pushAndRender(key, fallback){
-    pushLog(this.state, flavor(key, fallback));
+    pushLog(this.state, flavor(key, fallback), key);
     this.render();
   }
 
@@ -371,21 +389,10 @@ this.render();
     }
   }
 }
-
-
-// Keep the class accessible for debugging (optional)
-
-// NOTE: The rest of the implementation continues in Parts 2–4 below.
-
-/* Azulian Life Simulator — LogicEngineBase.js
- * Part 2/4 — Ticks, Mortality, Cohorts, Jealousy
- * Relies on: Life class from Part 1, CONFIG, CHILD_P, helper fns
- */
-
-
-
-
+// ─────────────────────────────────────────────
 // Ambient mortality per tick (Wait/Reproduce/etc). Uses current main path.
+// Now supports flavor suppression and one-shot overrides.
+// ─────────────────────────────────────────────
 Life.prototype._ambientMortalityCheck = function(){
   const s = this.state;
   if (!s.alive) return;
@@ -393,34 +400,40 @@ Life.prototype._ambientMortalityCheck = function(){
   // Determine path
   const path = s.deployed ? "deployed" : (s.outlander ? "outlander" : "baseline");
   const baseP = CONFIG.ambientMortality[path] || CONFIG.ambientMortality.baseline;
-
-  // Global Outlander advantage (from past Revolt success): use advantage semantics
   const advantaged = !!s.globallyOutlanderAdvantage;
 
-  // Try a single lethal check per tick
-  this._maybeKill(baseP, path === "deployed" ? "deathExplorer" :
-                        path === "outlander" ? "deathOutlander" :
-                        "deathAccident",
-                  {advantage: advantaged});
-                  // PATCH — contextual pass-time flavor
-// Contextual flavor: allow a one-tick override (e.g., reproduce)
-// If no override, default to passTime*.
-if (s.alive) {
+  // Try one lethal roll
+  const died = this._maybeKill(
+    baseP,
+    path === "deployed" ? "deathExplorer"
+  : path === "outlander" ? "deathOutlander"
+  : "deathAccident",
+    { advantage: advantaged }
+  );
+
+  // If dead, flavor handled elsewhere
+  if (!s.alive || died) return;
+
+  // 🔸 Contextual flavor rules:
+  //  1. Use one-tick override (if set)
+  //  2. If suppression flag set, skip flavor this tick
+  //  3. Otherwise default to passTime (only Wait calls leave suppression off)
   let key = null;
 
   if (s._flavorOverrideKey) {
     key = s._flavorOverrideKey;
-    s._flavorOverrideKey = null; // one-shot override used up
+    s._flavorOverrideKey = null; // one-shot
+  } else if (s._suppressPassFlavor) {
+    s._suppressPassFlavor = false; // consume flag, skip logging
+    return;
   } else {
-    const path = s.deployed ? "deployed" : (s.outlander ? "outlander" : "baseline");
+    // default passive flavor
     key = (path === "deployed") ? "passTimeExplorer"
         : (path === "outlander") ? "passTimeOutlander"
         : "passTime";
   }
 
-  pushLog(s, flavor(key));
-}
-
+  pushLog(s, flavor(key), key);
 
 };
 
@@ -642,6 +655,8 @@ Life.prototype.reproduce = function(){
 
   // This one-tick override suppresses passTime* flavor
   s._flavorOverrideKey = reproKey;
+  s._suppressPassFlavor = true;
+
 
   // ── Litter size 1–6, ~50/50 split
   const litter = randInt(1,6);
@@ -672,41 +687,55 @@ s._flavorOverrideKey = reproKey;
 };
 
 
-Life.prototype.takeHusband = function(){
+Life.prototype.takeHusband = function () {
   const s = this.state;
   if (!this._can("takeHusband")) return;
 
-  // Acceptance logic
+  // ---------- Acceptance logic ----------
   let accepted = false;
-  if (!s.deployed && !s.outlander){
-    // 100% rejection baseline
-    pushLog(s, flavor("husbandReject"));
+
+  // 1️⃣ Baseline (neither deployed nor outlander) → always reject
+  if (!s.deployed && !s.outlander) {
+    pushLog(s, flavor("husbandReject"), "husbandReject");   // ← key added
     if (this._maybeKill(CONFIG.takeHusbandRejectDeath, "deathRival")) return;
-  } else if (s.outlander){
-    accepted = !chance(0.90); // 10% accept
-    if (accepted) pushLog(s, flavor("husbandAcceptOutlander"));
-    else {
-      pushLog(s, flavor("husbandReject"));
+  }
+
+  // 2️⃣ Outlander path – 10 % chance to accept
+  else if (s.outlander) {
+    accepted = !chance(0.90);               // 10 % accept
+    if (accepted) {
+      pushLog(s, flavor("husbandAcceptOutlander"), "husbandAcceptOutlander");
+    } else {
+      pushLog(s, flavor("husbandReject"), "husbandReject");
       if (this._maybeKill(CONFIG.takeHusbandRejectDeath, "deathRival")) return;
     }
-  } else if (s.deployed){
-  // PATCH — Infamy-based acceptance tiers with 5% fear rejection
-  if (s.infamy >= 75) {
-    if (chance(0.05)) {
-      // 5% reject out of fear (non-lethal)
-      pushLog(s, flavor("husbandRejectFear"));
-      accepted = false;
-    } else {
-      accepted = true;
-      pushLog(s, flavor("husbandAcceptInfamous"));
-    }
-  } else {
-    accepted = true;
-    pushLog(s, flavor("husbandAcceptDeployed"));
   }
-}
+
+  // 3️⃣ Deployed path – infamy‑based acceptance tiers
+  else if (s.deployed) {
+    // High infamy introduces a small “fear” rejection chance
+    if (s.infamy >= 75) {
+      if (chance(0.05)) {                 // 5 % reject out of fear (non‑lethal)
+        pushLog(s, flavor("husbandRejectFear"), "husbandRejectFear");
+        accepted = false;
+      } else {
+        accepted = true;
+        pushLog(s, flavor("husbandAcceptInfamous"), "husbandAcceptInfamous");
+      }
+    } else {
+      // Normal deployed acceptance (always succeeds)
+      accepted = true;
+      pushLog(s, flavor("husbandAcceptDeployed"), "husbandAcceptDeployed");
+    }
+  }
+
+  // ---------- Apply result ----------
   if (accepted) s.husbands++;
 
+  // Suppress the generic “passTime” flavor for this tick
+  s._suppressPassFlavor = true;
+
+  // Advance one standard tick (runs mortality, background checks, etc.)
   this.timeTick();
 };
 
@@ -727,7 +756,8 @@ Life.prototype.joinOutlanders = function(){
   s.ratHunter = false;
   s.league.created = false;
 
-  pushLog(s, flavor("outlanderJoin"));
+pushLog(s, flavor("outlanderJoin"), "outlanderJoin");
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -738,7 +768,8 @@ Life.prototype.createUnion = function(){
 
   s.union.created = true;
   s.union.size = 1 + 1; // you + auto recruit 1
-  pushLog(s, flavor("foundUnion"));
+  pushLog(s, flavor("foundUnion"), "foundUnion");
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -753,7 +784,8 @@ Life.prototype.expandUnion = function(){
     return;
   }
   s.union.size = Math.min(10000, s.union.size + 1);
-  pushLog(s, flavor("unionGrowthTic"));
+  pushLog(s, flavor("unionGrowthTic"), "unionGrowthTic");
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -762,19 +794,21 @@ Life.prototype.buildCache = function(){
   if (!this._can("buildCache")) return;
 
   // 20% failure → death
-  if (chance(0.20)){
+  if (chance(0.10)){
     this._maybeKill(1, "buildUnionHideoutFail");
     return;
   }
 
   s.union.caches += 1;
   pushLog(s, flavor("buildUnionHideoutSuccess"));
+  s._suppressPassFlavor = true;
   // 5% triggers Cull Sighting event
-  if (!s.activeEvent && chance(CONFIG.cullSightingChance)){
-    s.activeEvent = "cull";
-    s.eventStage = "seen";
-    pushLog(s, flavor("cullSighting"));
-  }
+  pushLog(s, flavor("buildUnionHideoutSuccess"), "buildUnionHideoutSuccess");
+if (!s.activeEvent && chance(CONFIG.cullSightingChance)){
+  s.activeEvent = "cull";
+  s.eventStage = "seen";
+  pushLog(s, flavor("cullSighting"), "cullSighting");
+}
 
   this.timeTick();
 };
@@ -782,10 +816,11 @@ Life.prototype.buildCache = function(){
 Life.prototype.sabotage = function(){
   const s = this.state;
   if (!this._can("sabotage")) return;
+  
 
   const fail = chance(0.20);
   if (fail){
-    pushLog(s, flavor("sabotageOutlanderFail"));
+    pushLog(s, flavor("sabotageOutlanderFail"), "sabotageOutlanderFail");
     // Send to hiding: advance years (no background checks), then stealth failure chance 20% kill
     s.union.hidingActive = true;
     this.advanceYears(CONFIG.hideYears);
@@ -796,14 +831,16 @@ Life.prototype.sabotage = function(){
       this._maybeKill(1, "unionHidingFail");
       return;
     } else {
-      pushLog(s, flavor("unionHidingSuccess"));
+      pushLog(s, flavor("unionHidingSuccess"), "unionHidingSuccess");
       s.union.hidingActive = false;
     }
   } else {
-    pushLog(s, flavor("sabotageOutlanderSuccess"));
+    pushLog(s, flavor("sabotageOutlanderSuccess"), "sabotageOutlanderSuccess");
     s.union.revoltChanceBoost += CONFIG.sabotageSuccessRevoltBoost;
     s.financialStress = clamp(s.financialStress - CONFIG.sabotageSuccessStressDrop, 0, 100);
   }
+    s._suppressPassFlavor = true;
+  
 
   this.timeTick();
 };
@@ -840,6 +877,7 @@ Life.prototype.revolt = function(){
       this._unionPurgeToCacheCapacity();
     }
   }
+    s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -870,7 +908,10 @@ Life.prototype.deploy = function(){
   s.deployed = true;
   s.infamy += 5;
   s.lifespanYearsCap += CONFIG.deployYears; // “does not physically age you; adds to potential cap”
-  pushLog(s, flavor(first ? "firstDeploymentSuccess" : "vetDeploymentSuccess"));
+  pushLog(s,
+        flavor(first ? "firstDeploymentSuccess" : "vetDeploymentSuccess"),
+        first ? "firstDeploymentSuccess" : "vetDeploymentSuccess");
+    s._suppressPassFlavor = true;
 
   // Unlock Gala (button becomes visible)
   // Time passes 4y without stacked background checks
@@ -891,7 +932,8 @@ Life.prototype.startDuel = function(){
     return;
   }
   s.infamy += CONFIG.duelWinInfamy;
-  pushLog(s, flavor("dualWin"));
+ pushLog(s, flavor("dualWin"), "dualWin");
+   s._suppressPassFlavor = true;
 
   this.timeTick();
 };
@@ -905,7 +947,7 @@ Life.prototype._unionBackgroundTick = function(){
 
   // Stealth check
   if (chance(CONFIG.unionStealthFail)){
-    pushLog(s, flavor("unionHiding"));
+    pushLog(s, flavor("unionHiding"), "unionHiding");
     s.union.hidingActive = true;
     this.advanceYears(CONFIG.hideYears);
     // Exiting hiding stealth (kill chance)
@@ -913,28 +955,29 @@ Life.prototype._unionBackgroundTick = function(){
       this._maybeKill(1, "unionHidingFail");
       return;
     } else {
-      pushLog(s, flavor("unionHidingSuccess"));
+      pushLog(s, flavor("unionHidingSuccess"), "unionHidingSuccess"); 
       s.union.hidingActive = false;
       this._unionPurgeToCacheCapacity();
     }
   }
 
-  // Member churn: approximate per-member binomial
+  // Member churn: approximate per‑member binomial
   const N = Math.min(s.union.size, 2000); // soft cap loop for performance
   let recruits = 0, killed = 0;
-  for (let i=0; i<N; i++){
+  for (let i = 0; i < N; i++) {
     if (chance(CONFIG.memberRecruitProb)) recruits++;
     else if (chance(CONFIG.memberKilledProb)) killed++;
   }
   s.union.size = clamp(s.union.size + recruits - killed, 0, 10000);
 
-  if (killed > 0) pushLog(s, flavor("membersKilledYebaUnion"));
-  if (recruits > 0) pushLog(s, flavor("unionGrowthTic"));
-    // PATCH — union max-capacity flavor
-if (s.union.size >= 10000 && !s.union._maxCapNoted) {
-  s.union._maxCapNoted = true;
-  pushLog(s, flavor("unionMaxCapacity"));
-}
+  if (killed > 0) pushLog(s, flavor("membersKilledYebaUnion"), "membersKilledYebaUnion"); // <-- key added
+  if (recruits > 0) pushLog(s, flavor("unionGrowthTic"), "unionGrowthTic");               // <-- key added
+
+  // PATCH — union max‑capacity flavor
+  if (s.union.size >= 10000 && !s.union._maxCapNoted) {
+    s.union._maxCapNoted = true;
+    pushLog(s, flavor("unionMaxCapacity"), "unionMaxCapacity"); 
+  }
 };
 
 Life.prototype._unionPurgeToCacheCapacity = function(){
@@ -942,7 +985,8 @@ Life.prototype._unionPurgeToCacheCapacity = function(){
   const cap = s.union.caches * CONFIG.cacheMembersCapacity;
   if (s.union.size > cap){
     s.union.size = cap;
-    pushLog(s, flavor("unionHiding")); // reuse or add a specific “union purged” flavor
+    // You can keep the generic “unionHiding” flavour or create a dedicated one (e.g., "unionPurged").
+    pushLog(s, flavor("unionHiding"), "unionHiding"); 
   }
 };
 
@@ -953,14 +997,15 @@ Life.prototype._leagueBackgroundTick = function(){
 
   // Stealth
   if (chance(CONFIG.leagueStealthFail)){
-    pushLog(s, flavor("leagueHiding"));
+    pushLog(s, flavor("leagueHiding"), "leagueHiding");
     s.league.hidingActive = true;
     this.advanceYears(CONFIG.hideYears);
     if (chance(CONFIG.leagueHideKillPlayer)){
       this._maybeKill(1, "leagueHidingDeath");
       return;
     } else {
-      pushLog(s, flavor("passTime")); // or leagueHidingSuccess
+      // Use the generic pass‑time flavour (yellow) when hiding succeeds
+      pushLog(s, flavor("passTime"), "passTime");
       s.league.hidingActive = false;
       // Optional: purge above capacity if modeled
     }
@@ -969,19 +1014,19 @@ Life.prototype._leagueBackgroundTick = function(){
   // Member churn
   const N = Math.min(s.league.size, 2000);
   let recruits = 0, killed = 0;
-  for (let i=0; i<N; i++){
+  for (let i = 0; i < N; i++) {
     if (chance(CONFIG.memberRecruitProb)) recruits++;
     else if (chance(CONFIG.memberKilledProb)) killed++;
   }
   s.league.size = clamp(s.league.size + recruits - killed, 0, 10000);
-  if (killed > 0) pushLog(s, flavor("membersKilledRatHunters"));
-  if (recruits > 0) pushLog(s, flavor("leagueGrowthTic"));
-  // PATCH — league max-capacity flavor
-if (s.league.size >= 10000 && !s.league._maxCapNoted) {
-  s.league._maxCapNoted = true;
-  pushLog(s, flavor("leagueMaxCapacity"));
-}
+  if (killed > 0) pushLog(s, flavor("membersKilledRatHunters"), "membersKilledRatHunters"); // <-- key added
+  if (recruits > 0) pushLog(s, flavor("leagueGrowthTic"), "leagueGrowthTic");               // <-- key added
 
+  // PATCH — league max‑capacity flavor
+  if (s.league.size >= 10000 && !s.league._maxCapNoted) {
+    s.league._maxCapNoted = true;
+    pushLog(s, flavor("leagueMaxCapacity"), "leagueMaxCapacity");
+  }
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -992,7 +1037,9 @@ Life.prototype.attendGala = function(){
   if (!this._can("attendGala")) return;
   s.activeEvent = "gala";
   s.eventStage = "intro";
-  pushLog(s, flavor("suspiciousElites"));
+
+  // <-- key added for colour -->
+  pushLog(s, flavor("suspiciousElites"), "suspiciousElites");
 };
 
 // Event panel actions (Gala)
@@ -1003,14 +1050,14 @@ Life.prototype.galaInvestigate = function(){
   // 50% success path
   if (chance(0.50)){
     // success → can Found ADL with 10 members, +30 Moral Clarity
-    pushLog(s, flavor("kickedRatHuntersFromGala"));
+    pushLog(s, flavor("kickedRatHuntersFromGala"), "kickedRatHuntersFromGala");
     s.eventStage = "found_league_ready";
     s.eventData = s.eventData || {};
-s.eventData.galaInvestigateSuccess = true;
+    s.eventData.galaInvestigateSuccess = true;
 
   } else {
     // failure → kicked; retaliation risk enabled until League founded
-    pushLog(s, flavor("galaKicked"));
+    pushLog(s, flavor("galaKicked"), "galaKicked");
     s.galaRetaliationActive = true;
     s.eventStage = "found_league_ready"; // still may found league, but with only 1 member by default
   }
@@ -1021,7 +1068,7 @@ Life.prototype.galaIgnore = function(){
   if (s.activeEvent !== "gala" || s.eventStage !== "intro") return;
 
   // Recruit Rat Hunter: player chooses Join or Decline
-  pushLog(s, flavor("recruitRatHunter"));
+  pushLog(s, flavor("recruitRatHunter"), "recruitRatHunter");
   s.eventStage = "rat_hunter_choice";
 };
 
@@ -1033,7 +1080,8 @@ Life.prototype.galaJoinRatHunters = function(){
   s.leagueActive = false;
   s.league.created = false;
   s.infamy += 30;
-  pushLog(s, flavor("joinRatHunters"));
+
+  pushLog(s, flavor("joinRatHunters"), "joinRatHunters");
   // unlock Safari
   s.activeEvent = null;
   s.eventStage = "gala_done";
@@ -1043,7 +1091,7 @@ Life.prototype.galaDeclineRatHunters = function(){
   const s = this.state;
   if (s.activeEvent !== "gala" || s.eventStage !== "rat_hunter_choice") return;
 
-  pushLog(s, flavor("galaBadTaste"));
+  pushLog(s, flavor("galaBadTaste"), "galaBadTaste");
   s.activeEvent = null;
   s.eventStage = "gala_done";
 };
@@ -1063,11 +1111,13 @@ Life.prototype.foundLeague = function(){
   s.moralClarity += 30;
   s.galaRetaliationActive = false;
 
-  pushLog(s, flavor("foundLeague") || "The Anti-Degeneracy League is founded.");
+  // If the flavour bucket is missing we still want a coloured line,
+  // so we pass a fallback **and** a key.
+  const line = flavor("foundLeague") || "The Anti-Degeneracy League is founded.";
+  pushLog(s, line, "foundLeague");   // <-- key added
   s.activeEvent = null;
   s.eventStage = "gala_done";
 };
-
 
 // Recurring retaliation until League founded
 Life.prototype._galaRetaliationTick = function(){
@@ -1081,7 +1131,8 @@ Life.prototype._galaRetaliationTick = function(){
 
   if (s.husbands > 0 && chance(killHusbandP)){
     s.husbands -= 1;
-    pushLog(s, flavor("husbandKilledbyRatHunters"));
+    // <-- key added for colour (husband → flav‑husband)
+    pushLog(s, flavor("husbandKilledbyRatHunters"), "husbandKilledbyRatHunters");
   }
   this._maybeKill(killPlayerP, "killedByRatHunters");
 };
@@ -1093,7 +1144,9 @@ Life.prototype.expandLeague = function(){
 
   // Net gain tick is managed in background; here we do a guaranteed recruit action
   s.league.size = Math.min(10000, s.league.size + 1);
-  pushLog(s, flavor("leagueGrowthTic"));
+  // <-- key added (league → flav‑faction)
+  pushLog(s, flavor("leagueGrowthTic"), "leagueGrowthTic");
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -1105,16 +1158,19 @@ Life.prototype.huntHunter = function(){
   if (s.league.hookerRecruited) p = 0.90;
 
   if (chance(p)){
-    pushLog(s, flavor("leagueHunt"));
+    // <-- key added (league → flav‑faction)
+    pushLog(s, flavor("leagueHunt"), "leagueHunt");
     s.moralClarity += 10;
     if (chance(CONFIG.hookerRecruitOnHuntSuccess)){
       s.league.hookerRecruited = true;
-      pushLog(s, flavor("hookerRecruitSuccess"));
+      // <-- key added – you may want a combat colour for this; add a rule for “hooker” if desired
+      pushLog(s, flavor("hookerRecruitSuccess"), "hookerRecruitSuccess");
     }
   } else {
     this._maybeKill(1, "huntFailed");
     return;
   }
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -1129,10 +1185,11 @@ Life.prototype.enactPurge = function(){
   if (s.league.hookerRecruited) p = clamp(p + 0.10, 0, 1);
 
   if (chance(p)){
-    pushLog(s, flavor("leaguePurgeSuccess"));
-    // After successful purge, you could unlock Space Pirate later
+    // <-- key added (league → flav‑faction)
+    pushLog(s, flavor("leaguePurgeSuccess"), "leaguePurgeSuccess");
   } else {
-    pushLog(s, flavor("leaguePurgeFail"));
+    // <-- key added (league → flav‑faction)
+    pushLog(s, flavor("leaguePurgeFail"), "leaguePurgeFail");
     // Failure → hiding
     s.league.hidingActive = true;
     this.advanceYears(CONFIG.hideYears);
@@ -1140,10 +1197,12 @@ Life.prototype.enactPurge = function(){
       this._maybeKill(1, "leagueHidingDeath");
       return;
     } else {
-      pushLog(s, flavor("passTime"));
+      // <-- key added (passTime → flav‑pass)
+      pushLog(s, flavor("passTime"), "passTime");
       s.league.hidingActive = false;
     }
   }
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -1154,15 +1213,16 @@ Life.prototype.safari = function(){
 
   if (chance(CONFIG.safariSuccess)){
     s.infamy += CONFIG.safariInfamy;
-    pushLog(s, flavor("safariFlavor"));
+    // <-- key added (safari → flav‑combat)
+    pushLog(s, flavor("safariFlavor"), "safariFlavor");
     s.safariCount += 1;
     if (s.safariCount >= 3) s.bloodsportsUnlocked = true;
   } else {
-    // 10% death by hooker or outlanders
     const key = chance(0.5) ? "killedByHooker" : "killedByOutlanders";
     this._maybeKill(1, key);
     return;
   }
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
 
@@ -1173,27 +1233,31 @@ Life.prototype.bloodsports = function(){
   s.infamy += CONFIG.bloodsportsInfamy;
   if (!s.annihilationActive){
     s.annihilationActive = true;
-    pushLog(s, flavor("firstBlood"));
+    // <-- key added (blood → flav‑combat)
+    pushLog(s, flavor("firstBlood"), "firstBlood");
   }
-  pushLog(s, flavor("bloodFlavor"));
+  // <-- key added (blood → flav‑combat)
+  pushLog(s, flavor("bloodFlavor"), "bloodFlavor");
+  s._suppressPassFlavor = true;
   this.timeTick();
 };
-
 // ─────────────────────────────────────────────────────────────
 // Cull Sighting (Outlander event panel)
 // ─────────────────────────────────────────────────────────────
 Life.prototype.cullInvestigate = function(){
   const s = this.state;
   if (s.activeEvent !== "cull" || s.eventStage !== "seen") return;
-  pushLog(s, flavor("investigateCull"));
+  // <-- key added for colour (faction) -->
+  pushLog(s, flavor("investigateCull"), "investigateCull");
   s.eventStage = "discovered";
-  pushLog(s, flavor("discoverCullCompound"));
+  pushLog(s, flavor("discoverCullCompound"), "discoverCullCompound");
 };
 
 Life.prototype.cullIgnore = function(){
   const s = this.state;
   if (s.activeEvent !== "cull" || s.eventStage !== "seen") return;
-  pushLog(s, flavor("ignoreCull"));
+  // <-- key added for colour (faction) -->
+  pushLog(s, flavor("ignoreCull"), "ignoreCull");
   s.activeEvent = null;
   s.eventStage = null;
 };
@@ -1206,10 +1270,12 @@ Life.prototype.cullProtest = function(){
   // Linear scale 10% @ <1000 → 50% @ >=1000
   const p = (size < 1000) ? 0.10 : 0.50;
   if (chance(p)){
-    pushLog(s, flavor("unionCullProtestSuccess"));
+    // <-- key added for colour (faction) -->
+    pushLog(s, flavor("unionCullProtestSuccess"), "unionCullProtestSuccess");
     s.union.revoltChanceBoost += 10; // +10%
   } else {
-    pushLog(s, flavor("unionCullProtestFail"));
+    // <-- key added for colour (faction) -->
+    pushLog(s, flavor("unionCullProtestFail"), "unionCullProtestFail");
   }
   // Event ends with a long shadow/time skip (as per spec): 4 years, no background checks
   this.advanceYears(CONFIG.hideYears);
@@ -1222,20 +1288,17 @@ Life.prototype.cullSubterfuge = function(){
   if (s.activeEvent !== "cull" || s.eventStage !== "discovered") return;
 
   if (chance(0.50)){
-    pushLog(s, flavor("unionCullSubterfugeSuccess"));
+    // <-- key added for colour (faction) -->
+    pushLog(s, flavor("unionCullSubterfugeSuccess"), "unionCullSubterfugeSuccess");
     s.union.revoltChanceBoost += 5; // +5%
   } else {
-    pushLog(s, flavor("unionCullSubterfugeFail"));
+    // <-- key added for colour (faction) -->
+    pushLog(s, flavor("unionCullSubterfugeFail"), "unionCullSubterfugeFail");
   }
   this.advanceYears(CONFIG.hideYears); // time skip
   s.activeEvent = null;
   s.eventStage = null;
 };
-
-
-/* Azulian Life Simulator — LogicEngineBase.js
- * Part 4 — Themed Rendering (Red-Terminal Bio-Horror)
- */
 
 // ─────────────────────────────────────────────
 // Style injector – rusted command aesthetic
@@ -1327,6 +1390,14 @@ function ensureStyles(root){
   }
   .muted{opacity:0.7;}
 
+  .flav-death   { color:#ff5c5c; }      /* bright red */
+.flav-repro   { color:#8fff8f; }      /* soft green */
+.flav-pass    { color:#ffe96b; }      /* warm yellow */
+.flav-faction { color:#79d2ff; }      /* blue for union/league */
+.flav-husband { color:#ffa2ff; }      /* magenta for relationship drama */
+.flav-combat  { color:#ff9248; }      /* orange for violence */
+
+
   /* --- Animations --- */
   @keyframes crtFlicker{
     0%,19%,21%,23%,25%,54%,56%,100%{opacity:1;}
@@ -1347,6 +1418,7 @@ function ensureStyles(root){
   @keyframes deathFlash{
     0%{opacity:0.7;} 100%{opacity:0;}
   }
+  
 
   /* --- Responsive central column --- */
   @media(max-width:800px){
@@ -1355,12 +1427,6 @@ function ensureStyles(root){
   `;
   root.appendChild(css);
   root.__az_styles = true;
-}
-
-// Inject small red flash when killed
-function flashDeath(){
-  document.body.classList.add("flash-death");
-  setTimeout(()=>document.body.classList.remove("flash-death"),800);
 }
 
 // ─────────────────────────────────────────────
@@ -1486,121 +1552,160 @@ function renderBound(self){
     }).join(" ");
     const cohorts=section("Cohorts","showCohorts",
       `<div class="cohorts-body">${chips||"<span class='muted'>None</span>"}</div>`);
-
-
-// Controls
-// ——— Only show actions when unlocked, but keep base ones visible for flavor
-const b=(label, func)=>{
-  const alwaysVisible = ["reproduce","takeHusband","wait"]; // base actions always on screen
+;
+    };
+  }
+        
+/* --------------------------------------------------------------
+   1️⃣ Controls – only show actions when unlocked, but keep base
+   actions visible for flavor (including Join Outlanders)
+   -------------------------------------------------------------- */
+const b = (label, func) => {
+  // Base actions that should always be visible from the start
+  const alwaysVisible = ["reproduce", "takeHusband", "wait", "joinOutlanders"];
   const can = self._can(func);
 
-  // Always-visible buttons stay clickable for flavor; story-gated ones hidden until unlocked
+  // Show the button if it is allowed OR if it is a base action.
+  // When `can` is false we add a `locked` class so you can style it
+  // (e.g., dim it) if you ever want visual feedback.
   if (can || alwaysVisible.includes(func)) {
-    const lockedClass = can ? "" : "locked"; // CSS variant, still clickable if you want flavor
+    const lockedClass = can ? "" : "locked"; // CSS variant, still clickable
     return `<button class="btn ${lockedClass}" onclick="_life.${func}()">${label}</button>`;
   }
   return "";
 };
 
-const controls = section("Controls","showControls",`
+/* --------------------------------------------------------------
+   2️⃣ Build the Controls panel
+   -------------------------------------------------------------- */
+const controls = section("Controls", "showControls", `
   <div class="btnbar">
-    ${b("Reproduce","reproduce")}
-    ${b("Take Husband","takeHusband")}
-    ${b("Wait","wait")}
-    ${b("Join Outlanders","joinOutlanders")}
-    ${b("Create Union","createUnion")}
-    ${b("Expand Union","expandUnion")}
-    ${b("Build Cache","buildCache")}
-    ${b("Sabotage","sabotage")}
-    ${b("Revolt","revolt")}
-    ${b("Deploy","deploy")}
-    ${b("Attend Gala","attendGala")}
-    ${b("Start Duel","startDuel")}
-    ${b("Expand League","expandLeague")}
-    ${b("Hunt Hunter","huntHunter")}
-    ${b("Enact Purge","enactPurge")}
-    ${b("Safari","safari")}
-    ${b("Bloodsports","bloodsports")}
-  </div>`);
+    ${b("Reproduce", "reproduce")}
+    ${b("Take Husband", "takeHusband")}
+    ${b("Wait", "wait")}
+    ${b("Join Outlanders", "joinOutlanders")}
+    ${b("Create Union", "createUnion")}
+    ${b("Expand Union", "expandUnion")}
+    ${b("Build Cache", "buildCache")}
+    ${b("Sabotage", "sabotage")}
+    ${b("Revolt", "revolt")}
+    ${b("Deploy", "deploy")}
+    ${b("Attend Gala", "attendGala")}
+    ${b("Start Duel", "startDuel")}
+    ${b("Expand League", "expandLeague")}
+    ${b("Hunt Hunter", "huntHunter")}
+    ${b("Enact Purge", "enactPurge")}
+    ${b("Safari", "safari")}
+    ${b("Bloodsports", "bloodsports")}
+  </div>
+`);
 
-// Event panel
+/* --------------------------------------------------------------
+   3️⃣ Event panel (if an event is active)
+   -------------------------------------------------------------- */
 const ep = s.activeEvent ? renderEventPanel(s) : "";
 
-   // Log
+/* --------------------------------------------------------------
+   4️⃣ Log – current cycle + archived cycles
+   -------------------------------------------------------------- */
 let cycleLogs = "";
 
 // 🧩 Add archived life logs as collapsible sections
 if (window._lifeHistory && window._lifeHistory.length > 0) {
-  cycleLogs = window._lifeHistory.map((life, i) => {
-    const lines = life.log.map(l => `<div>${l}</div>`).join("");
-    const label = `Cycle ${window._lifeHistory.length - i} — age ${life.age} | infamy ${life.infamy}`;
-    return `
-      <details class="cycle-log">
-        <summary>${label}</summary>
-        <div class="log-body">${lines}</div>
-      </details>`;
-  }).join("");
+  cycleLogs = window._lifeHistory
+    .map((life, i) => {
+      const lines = life.log.map(l => `<div>${l}</div>`).join("");
+      const label = `Cycle ${window._lifeHistory.length - i} — age ${life.age} | infamy ${life.infamy}`;
+      return `
+        <details class="cycle-log">
+          <summary>${label}</summary>
+          <div class="log-body">${lines}</div>
+        </details>`;
+    })
+    .join("");
 }
 
 const logs = s.log.map(l => `<div>${l}</div>`).join("");
-const currentLabel = `Current Cycle — age ${(s.ageMonths/12).toFixed(1)} yrs`;
-const log = section("Log","showLog",`
+const currentLabel = `Current Cycle — age ${(s.ageMonths / 12).toFixed(1)} yrs`;
+
+const log = section("Log", "showLog", `
   <details class="cycle-log" open>
     <summary>${currentLabel}</summary>
-    <div class="log-body" id="life-log">${logs}</div>
+    <div class="log-body" id="life-log" role="log" aria-live="polite">
+      ${logs}
+    </div>
   </details>
   ${cycleLogs}
 `);
 
-    root.innerHTML=`<div class="life-wrap">${hud}${cohorts}${controls}${ep}${log}</div>`;
-  };
-}
+/* --------------------------------------------------------------
+   5️⃣ Render everything into the root element
+   -------------------------------------------------------------- */
+root.innerHTML = `<div class="life-wrap">${hud}${cohorts}${controls}${ep}${log}</div>`;
 
-// Compact Event Panel (hazard pulse)
-function renderEventPanel(s){
-  let t="",body="";
-  if(s.activeEvent==="gala"){
-    t="Elite Gala — Suspicious Elites";
-    if(s.eventStage==="intro")
-      body=btns(["Investigate","galaInvestigate"],["Ignore","galaIgnore"]);
-    else if(s.eventStage==="rat_hunter_choice")
-      body=btns(["Join Rat Hunters","galaJoinRatHunters"],["Decline","galaDeclineRatHunters"]);
-    else if(s.eventStage==="found_league_ready")
-      body=btns(["Found Anti-Degeneracy League","foundLeague"]);
-  }else if(s.activeEvent==="cull"){
-    t="Cull Sighting";
-    if(s.eventStage==="seen")
-      body=btns(["Investigate","cullInvestigate"],["Ignore","cullIgnore"]);
-    else if(s.eventStage==="discovered")
-      body=btns(["Protest","cullProtest"],["Subterfuge","cullSubterfuge"]);
+/* --------------------------------------------------------------
+   6️⃣ Compact Event Panel (hazard pulse)
+   -------------------------------------------------------------- */
+function renderEventPanel(s) {
+  let t = "", body = "";
+  if (s.activeEvent === "gala") {
+    t = "Elite Gala — Suspicious Elites";
+    if (s.eventStage === "intro")
+      body = btns(["Investigate", "galaInvestigate"], ["Ignore", "galaIgnore"]);
+    else if (s.eventStage === "rat_hunter_choice")
+      body = btns(["Join Rat Hunters", "galaJoinRatHunters"], ["Decline", "galaDeclineRatHunters"]);
+    else if (s.eventStage === "found_league_ready")
+      body = btns(["Found Anti-Degeneracy League", "foundLeague"]);
+  } else if (s.activeEvent === "cull") {
+    t = "Cull Sighting";
+    if (s.eventStage === "seen")
+      body = btns(["Investigate", "cullInvestigate"], ["Ignore", "cullIgnore"]);
+    else if (s.eventStage === "discovered")
+      body = btns(["Protest", "cullProtest"], ["Subterfuge", "cullSubterfuge"]);
   }
   return `<div class="event-panel active">
-            <h3>Event</h3><div><b>${t}</b></div>${body||"<div class='muted'>No actions.</div>"}
+            <h3>Event</h3><div><b>${t}</b></div>${body || "<div class='muted'>No actions.</div>"}
           </div>`;
 }
 
-function btns(...pairs){
-  return `<div class="btnbar">`+pairs.map(p=>`<button class="btn" onclick="_life.${p[1]}()">${p[0]}</button>`).join("")+`</div>`;
+/* --------------------------------------------------------------
+   7️⃣ Helper to build a row of buttons (used by the event panel)
+   -------------------------------------------------------------- */
+function btns(...pairs) {
+  // `pairs` is an array of [label, func] tuples
+  return `<div class="btnbar">` + pairs.map(p => `<button class="btn" onclick="_life.${p[1]}()">${p[0]}</button>`).join("") + `</div>`;
 }
-// Bind renderer factory globally
+
+/* --------------------------------------------------------------
+   8️⃣ Bind renderer factory globally (already existed)
+   -------------------------------------------------------------- */
 window.renderBound = renderBound;
 
-// Keep the class accessible for debugging (optional)
+/* --------------------------------------------------------------
+   9️⃣ Keep the class accessible for debugging (optional)
+   -------------------------------------------------------------- */
 window.__AzulianLifeSimClass = Life;
 
-// Expose shared globals for PopSim and RedQueen
+/* --------------------------------------------------------------
+   10️⃣ Expose shared globals for PopSim and RedQueen
+   -------------------------------------------------------------- */
 window.CONFIG = CONFIG;
 window.pushLog = pushLog;
 
-// Expose singleton controller
+/* --------------------------------------------------------------
+   11️⃣ Expose singleton controller (mount entry point)
+   -------------------------------------------------------------- */
 window.AzulianLifeSim = {
-  mount(containerId){
+  mount(containerId) {
     const root = document.getElementById(containerId);
-    if (!root){ console.error("[AzulianLifeSim] Missing container"); return; }
+    if (!root) {
+      console.error("[AzulianLifeSim] Missing container");
+      return;
+    }
 
-    // 🧩 Use makeNewState() directly so age = 16 yrs at start
+    // 🧩 Use makeNewState() directly so age = 16 yrs at start
     const life = new Life();
-    life.state = makeNewState(); 
+    life.state = makeNewState();
     life.state.ageMonths = 16 * 12;
 
     window._life = life;
@@ -1610,7 +1715,9 @@ window.AzulianLifeSim = {
   }
 };
 
-// 🧩 Ensure globals visible across reloads/rebirths
+/* --------------------------------------------------------------
+   12️⃣ Ensure globals visible across reloads/rebirths
+   -------------------------------------------------------------- */
 window.makeNewState = makeNewState;
 
 })(); // close IIFE
